@@ -22,7 +22,7 @@ body { height:100%; background:var(--paper2); color:var(--ink); font-family:'IBM
 .screen.active { display:flex; }
 .scroll-area { flex:1; overflow-y:auto; padding-bottom:12px; }
 .bottom-bar { flex-shrink:0; padding:10px 14px; background:var(--white); border-top:1px solid var(--paper2); display:flex; gap:8px; }
-.btn-primary { flex:1; background:var(--crust-dark); color:var(--wheat-light); border:none; padding:15px; border-radius:6px; cursor:pointer; font-family:inherit; }
+.btn-primary { flex:1; background:var(--crust-dark); color:var(--wheat-light); border:none; padding:15px; border-radius:6px; cursor:pointer; font-family:inherit; font-weight:600; }
 .btn-secondary { background:var(--paper2); color:var(--ink); border:none; padding:15px 14px; border-radius:6px; cursor:pointer; font-family:inherit; }
 .btn-reset { background:#FFF0EE; color:var(--danger); border:none; padding:15px 12px; border-radius:6px; cursor:pointer; font-size:11px; font-family:inherit; }
 .screen-title { font-family:'Lora',serif; font-size:20px; font-weight:600; padding:18px 16px 4px; color:var(--crust-dark); }
@@ -37,12 +37,13 @@ body { height:100%; background:var(--paper2); color:var(--ink); font-family:'IBM
 .live-totals { margin:0 16px 14px; background:var(--crust-dark); border-radius:8px; padding:12px 16px; display:flex; }
 .live-total-item { flex:1; text-align:center; color:white; }
 .live-total-val { font-family:'Lora',serif; font-size:22px; font-weight:700; color:var(--wheat-light); }
+.qty-input { width:60px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:500; border:none; background:transparent; outline:none; }
 .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:flex-end; justify-content:center; }
 .modal-overlay.open { display:flex; }
 .modal-sheet { background:var(--white); width:100%; max-width:480px; border-radius:16px 16px 0 0; padding:20px; }
-.ing-row { display:flex; justify-content:space-between; padding:10px 16px; border-top:1px solid var(--paper2); background:white; }
 .pesee-card { background:white; border-radius:10px; overflow:hidden; margin-bottom:12px; border:1px solid var(--paper2); }
-.pesee-card-title { background:var(--paper2); padding:10px 16px; font-weight:600; display:flex; justify-content:space-between; }
+.pesee-card-title { background:var(--paper2); padding:10px 16px; font-weight:600; display:flex; justify-content:space-between; font-family:'Lora'; }
+.ing-row { display:flex; justify-content:space-between; padding:10px 16px; border-top:1px solid var(--paper2); font-size:13px; }
 </style>
 </head>
 <body>
@@ -62,7 +63,7 @@ body { height:100%; background:var(--paper2); color:var(--ink); font-family:'IBM
         <div id="famille-items"></div>
       </div>
       <div class="section-lbl">Autres pétries</div>
-      <div id="autres-list" style="padding:0 8px"></div>
+      <div id="autres-list"></div>
     </div>
     <div class="bottom-bar">
       <button class="btn-reset" onclick="window.resetSelection()">Tout décocher</button>
@@ -88,9 +89,9 @@ body { height:100%; background:var(--paper2); color:var(--ink); font-family:'IBM
 
   <div class="screen" id="screen-resume">
     <div class="scroll-area" style="padding:16px">
-      <div class="screen-title" style="padding:0 0 16px">Résumé Pesées</div>
+      <div class="screen-title" style="padding:0 0 16px">Pesées</div>
       <div id="recap-pesees"></div>
-      <div class="section-lbl">Levains</div>
+      <div class="section-lbl">Levains à préparer</div>
       <div id="recap-levains"></div>
     </div>
     <div class="bottom-bar">
@@ -104,7 +105,7 @@ body { height:100%; background:var(--paper2); color:var(--ink); font-family:'IBM
   <div class="modal-sheet" onclick="event.stopPropagation()">
     <div class="screen-title" style="padding:0 0 10px">Fournées Cloud</div>
     <div id="saved-list" style="max-height:200px; overflow-y:auto; margin-bottom:15px"></div>
-    <input id="save-name-input" type="text" placeholder="Nom de la fournée (ex: Samedi 12)..." style="width:100%; padding:12px; border:2px solid var(--paper2); border-radius:8px; margin-bottom:10px; font-family:inherit">
+    <input id="save-name-input" type="text" placeholder="Nom de la fournée..." style="width:100%; padding:12px; border:2px solid var(--paper2); border-radius:8px; margin-bottom:10px; font-family:inherit">
     <button class="btn-primary" style="width:100%" onclick="window.saveFournee()">Envoyer au Cloud</button>
     <button class="btn-secondary" style="width:100%; margin-top:8px" onclick="window.closeSaveModal()">Fermer</button>
   </div>
@@ -127,7 +128,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// --- DONNEES COMPLETES RESTAURÉES ---
+// --- DONNÉES RESTAURÉES ---
 const CANAUX = ['Boutique','Marché','Commandes','Autres'];
 const LEVAINS_DEF = {
   'Levain dur T65':[{ing:'Farine T65',ratio:1.0},{ing:'Eau',ratio:0.5},{ing:'Souche',ratio:0.15}],
@@ -135,7 +136,7 @@ const LEVAINS_DEF = {
 };
 const RECETTES_DEF = {
   'Campagne': {famille:'campagne', inclusions:[], ingredients:[{ing:'Farine T80',ratio:1},{ing:'Eau',ratio:0.72},{ing:'Sel',ratio:0.015},{ing:'Levain dur T65',ratio:0.2}]},
-  'Graines': {famille:'campagne', inclusions:[{ing:'Graines',ratio:0.13}], ingredients:[{ing:'Farine T80',ratio:1},{ing:'Eau',ratio:0.72},{ing:'Sel',ratio:0.015},{ing:'Levain dur T65',ratio:0.2}]},
+  'Graines': {famille:'campagne', inclusions:[{ing:'Mélange graines',ratio:0.13}], ingredients:[{ing:'Farine T80',ratio:1},{ing:'Eau',ratio:0.72},{ing:'Sel',ratio:0.015},{ing:'Levain dur T65',ratio:0.2}]},
   'Noix': {famille:'campagne', inclusions:[{ing:'Noix',ratio:0.09}], ingredients:[{ing:'Farine T80',ratio:1},{ing:'Eau',ratio:0.72},{ing:'Sel',ratio:0.015},{ing:'Levain dur T65',ratio:0.2}]},
   'Figues': {famille:'campagne', inclusions:[{ing:'Figues',ratio:0.09}], ingredients:[{ing:'Farine T80',ratio:1},{ing:'Eau',ratio:0.72},{ing:'Sel',ratio:0.015},{ing:'Levain dur T65',ratio:0.2}]},
   'Classique': {famille:null, inclusions:[], ingredients:[{ing:'Farine T65',ratio:1},{ing:'Eau',ratio:0.72},{ing:'Sel',ratio:0.015},{ing:'Levain dur T65',ratio:0.2}]},
@@ -180,7 +181,7 @@ function init() {
   });
 }
 
-// NAVIGATION & BOUTONS
+// ATTACHER LES FONCTIONS AU WINDOW (CRUCIAL POUR LES MODULES)
 window.toggleRecette = (rec) => {
   if(selectedRecettes.has(rec)) selectedRecettes.delete(rec); else selectedRecettes.add(rec);
   document.getElementById(`sel-${rec}`).classList.toggle('selected');
@@ -198,8 +199,125 @@ function renderSaisieStep() {
   document.getElementById('saisie-title').textContent = rec;
   const container = document.getElementById('saisie-formats'); container.innerHTML = '';
   FORMATS_DEF[rec].forEach(fmt => {
-    const div = document.createElement('div'); div.style.padding = '10px 16px'; div.style.background = 'white'; div.style.marginBottom = '8px';
-    div.innerHTML = `<div style="font-weight:600; padding-bottom:5px; border-bottom:1px solid #eee">${fmt.nom} (${fmt.poids}kg)</div>`;
+    const div = document.createElement('div'); div.style.background = 'white'; div.style.marginBottom = '8px'; div.style.borderRadius='8px'; div.style.overflow='hidden';
+    div.innerHTML = `<div style="background:var(--paper2); padding:10px 16px; font-weight:600; font-size:13px">${fmt.nom} (${fmt.poids}kg)</div>`;
     CANAUX.forEach(c => {
-      const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center'; row.style.padding = '8px 0';
-      row.innerHTML = `<span style="font-size:12px; color:var(--ash)">${c}</span><input type
+      const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center'; row.style.padding = '8px 16px'; row.style.borderTop='1px solid var(--paper2)';
+      row.innerHTML = `<span style="font-size:12px; color:var(--ash)">${c}</span><input type="number" class="qty-input" value="${qty[rec][fmt.nom][c] || ''}" placeholder="0" oninput="window.updateQty('${rec}','${fmt.nom}','${c}', this.value)">`;
+      div.appendChild(row);
+    });
+    container.appendChild(div);
+  });
+  updateLiveTotals();
+  document.getElementById('btn-next').textContent = currentStep === orderedRecettes.length - 1 ? 'Voir Résumé →' : 'Suivant →';
+}
+
+window.updateQty = (rec, fmt, canal, val) => { qty[rec][fmt][canal] = parseInt(val) || 0; updateLiveTotals(); };
+
+function updateLiveTotals() {
+  const rec = orderedRecettes[currentStep]; let p = 0, k = 0;
+  FORMATS_DEF[rec].forEach(f => { CANAUX.forEach(c => { const v = qty[rec][f.nom][c]; p += v; k += v * f.poids; }); });
+  document.getElementById('live-pains').textContent = p; document.getElementById('live-kg').textContent = k.toFixed(2);
+}
+
+window.nextStep = () => { if(currentStep < orderedRecettes.length - 1) { currentStep++; renderSaisieStep(); } else { window.goToScreen('screen-resume'); renderResume(); } };
+window.prevStep = () => { if(currentStep > 0) { currentStep--; renderSaisieStep(); } else { window.goToSelection(); } };
+
+window.resetCurrentStep = () => {
+  if(!confirm('RAZ pour cette recette ?')) return;
+  const rec = orderedRecettes[currentStep];
+  FORMATS_DEF[rec].forEach(f => CANAUX.forEach(c => qty[rec][f.nom][c] = 0));
+  renderSaisieStep();
+};
+
+window.resetSelection = () => { selectedRecettes.clear(); document.querySelectorAll('.sel-item').forEach(el => el.classList.remove('selected')); document.getElementById('btn-start').disabled = true; };
+window.goToScreen = (id) => { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); };
+window.goToSelection = () => { window.goToScreen('screen-selection'); };
+
+// CALCULS & RESUME
+function renderResume() {
+  const ingTotal = {}; const addIng = (n,v) => ingTotal[n] = (ingTotal[n]||0) + v;
+  const recap = document.getElementById('recap-pesees'); recap.innerHTML = '';
+  
+  const fam = [...selectedRecettes].filter(r => RECETTES_DEF[r].famille === 'campagne');
+  if(fam.length) {
+    let totalPoids = 0; fam.forEach(r => { FORMATS_DEF[r].forEach(f => { CANAUX.forEach(c => totalPoids += qty[r][f.nom][c] * f.poids); }); });
+    const card = document.createElement('div'); card.className = 'pesee-card';
+    card.innerHTML = `<div class="pesee-card-title"><span>🌾 Base Campagne</span><span>${totalPoids.toFixed(2)}kg</span></div>`;
+    const dn = RECETTES_DEF['Campagne'].ingredients.reduce((s,i)=>s+i.ratio,0);
+    RECETTES_DEF['Campagne'].ingredients.forEach(i => {
+      const v = (i.ratio/dn)*totalPoids; addIng(i.ing, v);
+      card.innerHTML += `<div class="ing-row"><span>${i.ing}</span><span>${v.toFixed(3)}kg</span></div>`;
+    });
+    recap.appendChild(card);
+    fam.forEach(rec => {
+        const incl = RECETTES_DEF[rec].inclusions; if(!incl.length) return;
+        let p = 0; FORMATS_DEF[rec].forEach(f => CANAUX.forEach(c => p += qty[rec][f.nom][c] * f.poids));
+        if(p <= 0) return;
+        const sub = document.createElement('div'); sub.className = 'pesee-card';
+        sub.innerHTML = `<div class="pesee-card-title" style="background:#fff"><span>+ Inclusion ${rec}</span></div>`;
+        incl.forEach(inc => {
+            const v = (p / (1 + inc.ratio)) * inc.ratio;
+            sub.innerHTML += `<div class="ing-row"><span>${inc.ing}</span><span>${v.toFixed(3)}kg</span></div>`;
+        });
+        recap.appendChild(sub);
+    });
+  }
+  [...selectedRecettes].filter(r => !RECETTES_DEF[r].famille).forEach(r => {
+    let p = 0; FORMATS_DEF[r].forEach(f => CANAUX.forEach(c => p += qty[r][f.nom][c] * f.poids));
+    if(p <= 0) return;
+    const card = document.createElement('div'); card.className = 'pesee-card';
+    card.innerHTML = `<div class="pesee-card-title"><span>${r}</span><span>${p.toFixed(2)}kg</span></div>`;
+    const dn = RECETTES_DEF[r].ingredients.reduce((s,i)=>s+i.ratio,0);
+    RECETTES_DEF[r].ingredients.forEach(i => {
+      const v = (i.ratio/dn)*p; addIng(i.ing, v);
+      card.innerHTML += `<div class="ing-row"><span>${i.ing}</span><span>${v.toFixed(3)}kg</span></div>`;
+    });
+    recap.appendChild(card);
+  });
+  const levDiv = document.getElementById('recap-levains'); levDiv.innerHTML = '';
+  Object.keys(LEVAINS_DEF).forEach(l => {
+    const besoin = ingTotal[l]; if(!besoin) return;
+    const card = document.createElement('div'); card.className = 'pesee-card';
+    card.innerHTML = `<div class="pesee-card-title"><span>${l}</span><span>${besoin.toFixed(2)}kg</span></div>`;
+    const sum = LEVAINS_DEF[l].reduce((s,i)=>s+i.ratio,0);
+    LEVAINS_DEF[l].forEach(i => {
+      card.innerHTML += `<div class="ing-row"><span>${i.ing}</span><span>${((i.ratio/sum)*besoin).toFixed(3)}kg</span></div>`;
+    });
+    levDiv.appendChild(card);
+  });
+}
+
+// FIREBASE
+window.saveFournee = () => {
+  const name = document.getElementById('save-name-input').value.trim(); if(!name) return;
+  set(ref(db, 'fournees/' + name), { selected: [...selectedRecettes], qty: qty }).then(() => {
+      document.getElementById('save-name-input').value = '';
+      window.closeSaveModal();
+  });
+};
+onValue(ref(db, 'fournees'), (snap) => {
+  const data = snap.val() || {}; const list = document.getElementById('saved-list'); list.innerHTML = '';
+  Object.keys(data).forEach(name => {
+    const d = document.createElement('div'); d.className = 'sel-item'; d.style.background = 'var(--paper)';
+    d.innerHTML = `<span>${name}</span><span style="color:var(--danger); padding:5px" onclick="event.stopPropagation(); window.deleteFournee('${name}')">✕</span>`;
+    d.onclick = () => {
+        qty = data[name].qty;
+        selectedRecettes = new Set(data[name].selected);
+        // On rafraichit l'UI de sélection
+        document.querySelectorAll('.sel-item').forEach(el => el.classList.remove('selected'));
+        selectedRecettes.forEach(r => document.getElementById(`sel-${r}`).classList.add('selected'));
+        window.startSaisie();
+        window.closeSaveModal();
+    };
+    list.appendChild(d);
+  });
+});
+window.deleteFournee = (name) => { if(confirm('Supprimer cette fournée ?')) remove(ref(db, 'fournees/' + name)); };
+window.openSaveModal = () => document.getElementById('modal-save').classList.add('open');
+window.closeSaveModal = (e) => { if(!e || e.target.id === 'modal-save') document.getElementById('modal-save').classList.remove('open'); };
+
+init();
+</script>
+</body>
+</html>
