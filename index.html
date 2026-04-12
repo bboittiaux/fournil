@@ -3,412 +3,312 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Fournil</title>
+<title>Fournil - Les Enfarinés</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --ink:#1A1208; --paper:#F7F2E8; --paper2:#EFE8D6; --wheat:#C8A96E;
-  --wheat-light:#E8D4A0; --crust:#8B5E2A; --crust-dark:#5C3A10;
-  --ash:#9A8E7E; --ash-light:#C8BDB0; --white:#FDFAF4;
-  --danger:#C0392B; --danger-bg:#FFF0EE; --green:#4A7C59;
+  --ink: #1A1208;
+  --paper: #F7F2E8;
+  --paper2: #EFE8D6;
+  --wheat: #C8A96E;
+  --wheat-light: #E8D4A0;
+  --crust: #8B5E2A;
+  --crust-dark: #5C3A10;
+  --ash: #9A8E7E;
+  --ash-light: #C8BDB0;
+  --white: #FDFAF4;
+  --danger: #C0392B;
 }
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{height:100%;background:var(--paper);color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:14px;overscroll-behavior:none;}
-#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;overflow:hidden;}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* Style pour PC : On centre l'app avec une ombre */
+body { 
+  height:100%; 
+  background:var(--paper2); 
+  color:var(--ink); 
+  font-family:'IBM Plex Mono',monospace; 
+  display:flex; 
+  justify-content:center; 
+  align-items:center;
+}
+#app { 
+  display:flex; 
+  flex-direction:column; 
+  height:100dvh; 
+  width:100%;
+  max-width:480px; 
+  background:var(--paper);
+  margin:0 auto; 
+  overflow:hidden; 
+  box-shadow: 0 0 40px rgba(0,0,0,0.1); /* Ombre pour le PC */
+}
 
-/* HEADER */
-.header{background:var(--crust-dark);padding:12px 14px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:8px;}
-.logo{font-family:'Lora',serif;font-size:20px;font-weight:700;color:var(--wheat-light);white-space:nowrap;}
-.header-btns{display:flex;gap:6px;flex-shrink:0;}
-.btn-hdr{background:rgba(255,255,255,0.09);border:none;color:var(--ash-light);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:7px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;}
-.btn-hdr:active{background:rgba(255,255,255,0.2);}
+/* HEADER & UI */
+.header { background:var(--crust-dark); padding:14px 16px 12px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.logo { font-family:'Lora',serif; font-size:22px; font-weight:700; color:var(--wheat-light); }
+.btn-hdr { background:rgba(255,255,255,0.08); border:none; color:var(--ash-light); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:7px 12px; border-radius:5px; cursor:pointer; }
+.progress-bar { height:3px; background:var(--crust); flex-shrink:0; }
+.progress-fill { height:100%; background:var(--wheat); transition:width 0.4s ease; }
+.screen { display:none; flex-direction:column; flex:1; overflow:hidden; }
+.screen.active { display:flex; }
+.scroll-area { flex:1; overflow-y:auto; padding-bottom:12px; }
+.bottom-bar { flex-shrink:0; padding:10px 14px; background:var(--white); border-top:1px solid var(--paper2); display:flex; gap:8px; }
+.btn-primary { flex:1; background:var(--crust-dark); color:var(--wheat-light); border:none; padding:15px; border-radius:6px; cursor:pointer; font-weight:500; }
+.btn-secondary { background:var(--paper2); color:var(--ink); border:none; padding:15px 14px; border-radius:6px; cursor:pointer; }
+.btn-reset { background:#FFF0EE; color:var(--danger); border:none; padding:15px 12px; border-radius:6px; cursor:pointer; font-size:11px; }
 
-/* PROGRESS */
-.progress-bar{height:3px;background:var(--crust);flex-shrink:0;}
-.progress-fill{height:100%;background:var(--wheat);transition:width 0.4s ease;}
+/* ELEMENTS DE SELECTION */
+.screen-title { font-family:'Lora',serif; font-size:20px; font-weight:600; padding:18px 16px 4px; color:var(--crust-dark); }
+.screen-subtitle { font-size:11px; color:var(--ash); padding:0 16px 14px; }
+.famille-group { margin:0 16px 8px; background:var(--white); border-radius:10px; overflow:hidden; border:2px solid transparent; }
+.famille-group.any-selected { border-color:var(--wheat); }
+.famille-header { padding:13px 16px; background:var(--paper2); font-family:'Lora',serif; font-size:13px; font-weight:600; color:var(--crust-dark); }
+.sel-item, .recette-card { padding:12px 13px; border-radius:7px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; margin:4px 8px; border:2px solid transparent; background:var(--white); }
+.sel-item.selected, .recette-card.selected { background:#FEF9EE; border-color:var(--wheat); }
+.check-circle { width:24px; height:24px; border-radius:50%; border:2px solid var(--ash-light); display:flex; align-items:center; justify-content:center; color:transparent; }
+.selected .check-circle { background:var(--wheat); border-color:var(--wheat); color:white; }
 
-/* SCREENS */
-.screen{display:none;flex-direction:column;flex:1;overflow:hidden;}
-.screen.active{display:flex;}
-.scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:16px;}
-
-/* BOTTOM BAR */
-.bottom-bar{flex-shrink:0;padding:10px 12px;background:var(--white);border-top:1px solid var(--paper2);display:flex;gap:8px;}
-.btn-primary{flex:1;background:var(--crust-dark);color:var(--wheat-light);border:none;padding:15px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;border-radius:6px;cursor:pointer;}
-.btn-primary:active{background:var(--crust);}
-.btn-primary:disabled{background:var(--ash-light);color:var(--ash);}
-.btn-secondary{background:var(--paper2);color:var(--ink);border:none;padding:15px 12px;font-family:'IBM Plex Mono',monospace;font-size:12px;border-radius:6px;cursor:pointer;white-space:nowrap;}
-.btn-secondary:active{background:var(--ash-light);}
-.btn-reset{background:var(--danger-bg);color:var(--danger);border:none;padding:15px 11px;font-family:'IBM Plex Mono',monospace;font-size:11px;border-radius:6px;cursor:pointer;white-space:nowrap;}
-.btn-reset:active{background:#FDDCDA;}
-
-/* SCREEN TITLES */
-.screen-title{font-family:'Lora',serif;font-size:20px;font-weight:600;padding:16px 16px 4px;color:var(--crust-dark);}
-.screen-subtitle{font-size:11px;color:var(--ash);padding:0 16px 12px;}
-
-/* SELECTION */
-.section-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--ash);margin:0 16px 7px;}
-.famille-group{margin:0 16px 8px;background:var(--white);border-radius:10px;overflow:hidden;border:2px solid transparent;transition:border-color 0.15s;}
-.famille-group.any-selected{border-color:var(--wheat);}
-.famille-header{padding:12px 15px;background:var(--paper2);font-family:'Lora',serif;font-size:13px;font-weight:600;color:var(--crust-dark);display:flex;align-items:center;gap:8px;}
-.famille-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;background:var(--wheat-light);color:var(--crust-dark);padding:2px 7px;border-radius:20px;}
-.famille-items{padding:7px;display:flex;flex-direction:column;gap:5px;}
-.sel-item{padding:11px 12px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:all 0.12s;user-select:none;border:2px solid transparent;}
-.sel-item:active{opacity:0.8;}
-.sel-item.selected{background:#FEF9EE;border-color:var(--wheat);}
-.sel-item-name{font-family:'Lora',serif;font-size:15px;font-weight:600;}
-.sel-item-fmts{font-size:11px;color:var(--ash);margin-top:2px;}
-.check-circle{width:24px;height:24px;border-radius:50%;border:2px solid var(--ash-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;color:transparent;transition:all 0.15s;}
-.sel-item.selected .check-circle{background:var(--wheat);border-color:var(--wheat);color:white;}
-.autres-list{margin:0 16px;display:flex;flex-direction:column;gap:6px;}
-.recette-card{background:var(--white);border:2px solid transparent;border-radius:10px;padding:13px 15px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;transition:all 0.15s;}
-.recette-card:active{transform:scale(0.98);}
-.recette-card.selected{border-color:var(--wheat);background:#FEF9EE;}
-.recette-card.selected .check-circle{background:var(--wheat);border-color:var(--wheat);color:white;}
-
-/* SAISIE */
-.stepper-header{padding:12px 16px 0;}
-.stepper-dots{display:flex;gap:5px;justify-content:center;}
-.stepper-dot{width:8px;height:8px;border-radius:50%;background:var(--ash-light);transition:all 0.2s;}
-.stepper-dot.active{background:var(--wheat);width:22px;border-radius:4px;}
-.stepper-dot.done{background:var(--crust);}
-.recette-title-block{padding:13px 16px 9px;}
-.recette-title-main{font-family:'Lora',serif;font-size:24px;font-weight:700;color:var(--crust-dark);}
-.recette-title-note{font-size:11px;color:var(--ash);margin-top:3px;font-style:italic;}
-.live-totals{margin:0 16px 13px;background:var(--crust-dark);border-radius:8px;padding:11px 16px;display:flex;}
-.live-total-item{flex:1;text-align:center;}
-.live-total-item+.live-total-item{border-left:1px solid rgba(255,255,255,0.1);}
-.live-total-val{font-family:'Lora',serif;font-size:22px;font-weight:700;color:var(--wheat-light);}
-.live-total-lbl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ash);margin-top:2px;}
-.format-block{margin:0 16px 13px;background:var(--white);border-radius:10px;overflow:hidden;}
-.format-block-title{background:var(--paper2);padding:10px 15px;font-family:'Lora',serif;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center;}
-.format-poids{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ash);font-weight:400;}
-.canal-row{display:flex;align-items:center;padding:9px 15px;border-top:1px solid var(--paper2);}
-.canal-label{font-size:12px;color:var(--ash);width:85px;flex-shrink:0;}
-.canal-input-wrap{flex:1;display:flex;align-items:center;gap:7px;justify-content:flex-end;}
-.qty-btn{width:42px;height:42px;border-radius:50%;border:2px solid var(--paper2);background:var(--paper);font-size:20px;color:var(--crust);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;}
-.qty-btn:active{background:var(--wheat-light);border-color:var(--wheat);}
-.qty-input{width:58px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:500;color:var(--ink);border:none;background:transparent;outline:none;}
-.canal-subtotal{width:52px;text-align:right;font-size:11px;color:var(--ash);flex-shrink:0;}
-.famille-note{margin:0 16px 13px;background:#FEF9EE;border:1px solid var(--wheat-light);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--crust-dark);line-height:1.6;}
-
-/* RÉSUMÉ */
-.recap-section{margin:13px 16px 0;}
-.recap-section-title{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--ash);margin-bottom:8px;}
-.big-stat-row{display:flex;gap:8px;}
-.big-stat{flex:1;background:var(--crust-dark);border-radius:10px;padding:14px;text-align:center;}
-.big-stat-val{font-family:'Lora',serif;font-size:26px;font-weight:700;color:var(--wheat-light);}
-.big-stat-lbl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ash);margin-top:4px;}
-.recap-recette-card{background:var(--white);border-radius:10px;padding:13px 15px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:2px solid transparent;}
-.recap-recette-card:active{background:var(--paper2);}
-.recap-recette-name{font-family:'Lora',serif;font-size:15px;font-weight:600;}
-.recap-recette-detail{font-size:11px;color:var(--ash);margin-top:2px;}
-.edit-hint{font-size:10px;color:var(--wheat);margin-top:3px;}
-.recap-recette-vals{text-align:right;}
-.recap-recette-pains{font-family:'Lora',serif;font-size:20px;font-weight:700;color:var(--crust-dark);}
-.recap-recette-kg{font-size:11px;color:var(--ash);}
-.pesee-card{background:var(--white);border-radius:10px;overflow:hidden;margin-bottom:8px;}
-.pesee-card-title{background:var(--paper2);padding:11px 15px;font-family:'Lora',serif;font-size:14px;font-weight:600;color:var(--crust-dark);display:flex;justify-content:space-between;}
-.pesee-total{font-family:'IBM Plex Mono',monospace;font-weight:400;color:var(--wheat);}
-.ing-row{display:flex;justify-content:space-between;align-items:center;padding:9px 15px;border-top:1px solid var(--paper2);background:var(--white);}
-.ing-name{font-size:13px;}
-.ing-qty{font-size:14px;font-weight:500;color:var(--crust-dark);}
-.ing-unit{font-size:11px;color:var(--ash);}
-.levain-card{background:var(--white);border-radius:10px;overflow:hidden;margin-bottom:8px;}
-.levain-card-title{background:#FEF9EE;padding:11px 15px;font-family:'Lora',serif;font-size:14px;font-weight:600;color:var(--crust-dark);display:flex;justify-content:space-between;}
-.levain-total{font-family:'IBM Plex Mono',monospace;font-weight:400;color:var(--wheat);}
-.export-card{background:var(--white);border-radius:10px;padding:13px 15px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border:1px solid var(--paper2);}
-.export-card:active{background:var(--paper2);}
-.export-title{font-size:13px;font-weight:500;}
-.export-sub{font-size:11px;color:var(--ash);margin-top:2px;}
-.export-arrow{font-size:18px;color:var(--wheat);}
-
-/* ═══ ÉDITEUR DE RECETTES ═══ */
-.editor-list{margin:0 16px;display:flex;flex-direction:column;gap:8px;}
-.editor-recette-card{background:var(--white);border-radius:10px;overflow:hidden;border:1px solid var(--paper2);}
-.editor-recette-header{padding:13px 15px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;}
-.editor-recette-header:active{background:var(--paper2);}
-.editor-recette-name-wrap{display:flex;align-items:center;gap:8px;}
-.editor-recette-name{font-family:'Lora',serif;font-size:15px;font-weight:600;}
-.editor-famille-tag{font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--wheat-light);color:var(--crust-dark);padding:2px 7px;border-radius:20px;}
-.editor-chevron{color:var(--ash);font-size:14px;transition:transform 0.2s;}
-.editor-body{display:none;border-top:1px solid var(--paper2);padding:14px 15px;}
-.editor-body.open{display:block;}
-.editor-section-title{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--ash);margin-bottom:8px;margin-top:12px;}
-.editor-section-title:first-child{margin-top:0;}
-
-/* champ texte éditeur */
-.field-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.field-label{font-size:12px;color:var(--ash);flex:1;min-width:0;}
-.field-input{background:var(--paper);border:1.5px solid var(--paper2);border-radius:6px;padding:8px 10px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);width:90px;text-align:right;outline:none;}
-.field-input:focus{border-color:var(--wheat);}
-.field-input.wide{width:140px;text-align:left;}
-.field-unit{font-size:11px;color:var(--ash);white-space:nowrap;min-width:22px;}
-
-/* ingredient row in editor */
-.ing-edit-row{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
-.ing-edit-row .field-input.wide{flex:1;width:auto;}
-.ing-edit-row .field-input{width:75px;}
-.btn-del{background:var(--danger-bg);color:var(--danger);border:none;width:32px;height:32px;border-radius:6px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.btn-del:active{background:#FDDCDA;}
-.btn-add{background:var(--paper2);color:var(--crust-dark);border:none;padding:9px 14px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;width:100%;text-align:left;margin-top:4px;}
-.btn-add:active{background:var(--ash-light);}
-.btn-save-rec{background:var(--crust-dark);color:var(--wheat-light);border:none;padding:11px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;cursor:pointer;width:100%;margin-top:14px;}
-.btn-save-rec:active{background:var(--crust);}
-.btn-danger-full{background:var(--danger-bg);color:var(--danger);border:none;padding:10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;width:100%;margin-top:6px;}
-.btn-danger-full:active{background:#FDDCDA;}
-
-/* format edit */
-.fmt-edit-row{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
-.fmt-edit-row .field-input{width:80px;}
-
-/* nouvelle recette */
-.btn-new-rec{margin:10px 16px 0;background:var(--crust-dark);color:var(--wheat-light);border:none;padding:14px;border-radius:8px;font-family:'IBM Plex Mono',monospace;font-size:12px;cursor:pointer;width:calc(100% - 32px);}
-.btn-new-rec:active{background:var(--crust);}
+/* SAISIE & TOTALS */
+.live-totals { margin:0 16px 14px; background:var(--crust-dark); border-radius:8px; padding:12px 16px; display:flex; }
+.live-total-item { flex:1; text-align:center; color:white; }
+.live-total-val { font-family:'Lora',serif; font-size:22px; font-weight:700; color:var(--wheat-light); }
+.qty-input { width:60px; text-align:center; font-size:22px; border:none; background:transparent; outline:none; }
 
 /* MODAL */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(26,18,8,0.55);z-index:100;align-items:flex-end;justify-content:center;}
-.modal-overlay.open{display:flex;}
-.modal-sheet{background:var(--white);width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:20px 16px 32px;max-height:90dvh;overflow-y:auto;}
-.modal-title{font-family:'Lora',serif;font-size:18px;font-weight:700;margin-bottom:16px;color:var(--crust-dark);}
-.modal-input{width:100%;padding:12px 13px;border:2px solid var(--paper2);border-radius:8px;font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--ink);background:var(--paper);margin-bottom:10px;outline:none;}
-.modal-input:focus{border-color:var(--wheat);}
-.saved-list{margin-bottom:14px;}
-.saved-item{display:flex;justify-content:space-between;align-items:center;padding:12px 13px;background:var(--paper);border-radius:7px;margin-bottom:6px;cursor:pointer;}
-.saved-item:active{background:var(--paper2);}
-.saved-item-name{font-size:14px;font-weight:500;}
-.saved-item-del{color:var(--ash);font-size:16px;padding:4px 8px;}
-.modal-close{width:100%;padding:13px;background:var(--paper2);border:none;border-radius:8px;font-family:'IBM Plex Mono',monospace;font-size:13px;cursor:pointer;margin-top:6px;}
-
-.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--crust-dark);color:var(--wheat-light);padding:10px 20px;border-radius:8px;font-size:12px;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;}
-.toast.show{opacity:1;}
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:flex-end; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-sheet { background:var(--white); width:100%; max-width:480px; border-radius:16px 16px 0 0; padding:20px; }
 </style>
 </head>
 <body>
 <div id="app">
-
   <div class="header">
     <div class="logo">Fournil</div>
-    <div class="header-btns">
-      <button class="btn-hdr" onclick="goToScreen('screen-recettes')">✎ Recettes</button>
-      <button class="btn-hdr" onclick="openSaveModal()">⊙ Fournées</button>
-    </div>
+    <button class="btn-hdr" onclick="window.openSaveModal()">⊙ Fournées</button>
   </div>
   <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
 
-  <!-- ══ SÉLECTION ══ -->
   <div class="screen active" id="screen-selection">
     <div class="scroll-area">
       <div class="screen-title">Quelle fournée ?</div>
       <div class="screen-subtitle">Sélectionne les recettes du jour</div>
-      <div class="section-lbl" style="margin-bottom:6px">Famille campagne — cuve unique</div>
       <div class="famille-group" id="famille-group">
-        <div class="famille-header">🌾 Base Campagne T80 <span class="famille-badge">cuve unique</span></div>
-        <div class="famille-items" id="famille-items"></div>
+        <div class="famille-header">🌾 Base Campagne T80</div>
+        <div id="famille-items"></div>
       </div>
-      <div class="section-lbl" style="margin-top:12px;margin-bottom:7px">Autres pétries</div>
-      <div class="autres-list" id="autres-list"></div>
-      <div style="height:8px"></div>
+      <div id="autres-list"></div>
     </div>
     <div class="bottom-bar">
-      <button class="btn-reset" onclick="resetSelection()">Tout décocher</button>
-      <button class="btn-primary" id="btn-start" onclick="startSaisie()" disabled>Commencer →</button>
+      <button class="btn-reset" onclick="window.resetSelection()">Tout décocher</button>
+      <button class="btn-primary" id="btn-start" onclick="window.startSaisie()" disabled>Commencer →</button>
     </div>
   </div>
 
-  <!-- ══ SAISIE ══ -->
   <div class="screen" id="screen-saisie">
-    <div class="stepper-header">
-      <div class="stepper-dots" id="stepper-dots"></div>
-    </div>
-    <div class="scroll-area" id="saisie-scroll">
-      <div class="recette-title-block">
-        <div class="recette-title-main" id="saisie-title"></div>
-        <div class="recette-title-note" id="saisie-note"></div>
+    <div class="scroll-area">
+      <div id="saisie-title-block" style="padding:16px">
+        <h2 id="saisie-title"></h2>
       </div>
       <div class="live-totals">
-        <div class="live-total-item"><div class="live-total-val" id="live-pains">0</div><div class="live-total-lbl">pains</div></div>
-        <div class="live-total-item"><div class="live-total-val" id="live-kg">0.00</div><div class="live-total-lbl">kg pâte crue</div></div>
+        <div class="live-total-item"><div class="live-total-val" id="live-pains">0</div><div>pains</div></div>
+        <div class="live-total-item"><div class="live-total-val" id="live-kg">0.00</div><div>kg</div></div>
       </div>
       <div id="saisie-formats"></div>
     </div>
     <div class="bottom-bar">
-      <button class="btn-secondary" id="btn-prev" onclick="prevStep()">←</button>
-      <button class="btn-secondary" onclick="goToScreen('screen-selection')">Sélection</button>
-      <button class="btn-primary" id="btn-next" onclick="nextStep()">Suivant →</button>
-      <button class="btn-reset" onclick="resetCurrentStep()">RAZ</button>
+      <button class="btn-secondary" onclick="window.prevStep()">←</button>
+      <button class="btn-primary" onclick="window.nextStep()">Suivant →</button>
+      <button class="btn-reset" onclick="window.resetCurrentStep()">RAZ</button>
     </div>
   </div>
 
-  <!-- ══ RÉSUMÉ ══ -->
   <div class="screen" id="screen-resume">
-    <div class="scroll-area">
-      <div class="recap-section" style="margin-top:16px">
-        <div class="big-stat-row" id="big-stats"></div>
-      </div>
-      <div class="recap-section">
-        <div class="recap-section-title">Par recette — touche pour modifier</div>
-        <div id="recap-recettes"></div>
-      </div>
-      <div class="recap-section">
-        <div class="recap-section-title">Pesées</div>
-        <div id="recap-pesees"></div>
-      </div>
-      <div class="recap-section">
-        <div class="recap-section-title">Levains à préparer</div>
-        <div id="recap-levains"></div>
-      </div>
-      <div class="recap-section">
-        <div class="recap-section-title">Exporter</div>
-        <div class="export-card" onclick="exportPDF()"><div><div class="export-title">Résumé PDF</div><div class="export-sub">Imprimable — toutes les pesées</div></div><div class="export-arrow">↓</div></div>
-        <div class="export-card" onclick="exportExcel()"><div><div class="export-title">Excel / CSV</div><div class="export-sub">Pesées + levains + pains</div></div><div class="export-arrow">↓</div></div>
-        <div class="export-card" onclick="exportOdoo()"><div><div class="export-title">Odoo Manufacturing Order</div><div class="export-sub">odoo_mo.csv</div></div><div class="export-arrow">↓</div></div>
-        <div style="height:16px"></div>
-      </div>
+    <div class="scroll-area" id="resume-content" style="padding:16px">
+      <h2>Résumé de production</h2>
+      <div id="recap-pesees"></div>
     </div>
     <div class="bottom-bar">
-      <button class="btn-secondary" onclick="goToScreen('screen-selection')">← Sélection</button>
-      <button class="btn-secondary" onclick="goToScreen('screen-saisie');renderSaisieStep()">← Saisie</button>
-      <button class="btn-reset" onclick="resetAll()">Tout à 0</button>
-    </div>
-  </div>
-
-  <!-- ══ ÉDITEUR RECETTES ══ -->
-  <div class="screen" id="screen-recettes">
-    <div class="scroll-area">
-      <div class="screen-title">Recettes & Levains</div>
-      <div class="screen-subtitle">Modifie les ratios, formats et pertes à la cuisson</div>
-      <div class="editor-list" id="editor-list"></div>
-      <button class="btn-new-rec" onclick="addNewRecette()">+ Nouvelle recette</button>
-      <div style="height:16px"></div>
-    </div>
-    <div class="bottom-bar">
-      <button class="btn-secondary" onclick="goToScreen('screen-selection')">← Retour</button>
-      <button class="btn-primary" onclick="saveAllRecettes()">Enregistrer tout</button>
+      <button class="btn-secondary" onclick="window.goToSelection()">← Nouvelle</button>
+      <button class="btn-reset" onclick="window.resetAll()">Tout à 0</button>
     </div>
   </div>
 </div>
 
-<!-- MODAL FOURNÉES -->
-<div class="modal-overlay" id="modal-save" onclick="closeSaveModal(event)">
+<div class="modal-overlay" id="modal-save" onclick="window.closeSaveModal(event)">
   <div class="modal-sheet" onclick="event.stopPropagation()">
-    <div class="modal-title">Fournées sauvegardées</div>
-    <div class="saved-list" id="saved-list"></div>
-    <input class="modal-input" id="save-name-input" type="text" placeholder="Nom de la fournée…" maxlength="40">
-    <button class="btn-primary" onclick="saveFournee()">Sauvegarder la saisie actuelle</button>
-    <button class="modal-close" onclick="closeSaveModal()">Fermer</button>
+    <div class="modal-title">Fournées Cloud</div>
+    <div id="saved-list"></div>
+    <input id="save-name-input" type="text" placeholder="Nom de la fournée..." style="width:100%; padding:10px; margin:10px 0;">
+    <button class="btn-primary" style="width:100%" onclick="window.saveFournee()">Sauvegarder</button>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
-<script>
 <script type="module">
-  // 1. On va chercher les outils Firebase sur internet
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
-  // 2. On branche l'antenne (Ta configuration Firebase)
-  const firebaseConfig = {
+// CONFIGURATION FIREBASE
+const firebaseConfig = {
     apiKey: "AIzaSyArGWWiGJJsDiUHGCHlFAK00TL3swRt0Cs",
     authDomain: "fournil-enfarines.firebaseapp.com",
     databaseURL: "https://fournil-enfarines-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "fournil-enfarines",
     storageBucket: "fournil-enfarines.firebasestorage.app",
     messagingSenderId: "594902996762",
-    appId: "1:594902996762:web:603336fefc2da942cf7ea3",
-    measurementId: "G-PHK4ZJGD1C"
-  };
+    appId: "1:594902996762:web:603336fefc2da942cf7ea3"
+};
 
-  // 3. On allume la machine
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-  // --- LOGIQUE DE SAUVEGARDE CLOUD ---
+// DONNEES DE L'APP
+const CANAUX = ['Boutique','Marché','Commandes','Autres'];
+const RECETTES_DEF = {
+  'Campagne': {famille:'campagne', ingredients:[{ing:'Farine T80',ratio:1},{ing:'Eau',ratio:0.72},{ing:'Sel',ratio:0.015},{ing:'Levain',ratio:0.2}]},
+  'Graines': {famille:'campagne', ingredients:[{ing:'Farine T80',ratio:1},{ing:'Graines',ratio:0.13}]},
+  'Classique': {famille:null, ingredients:[{ing:'Farine T65',ratio:1},{ing:'Eau',ratio:0.72}]},
+  'Pain de mie': {famille:null, ingredients:[{ing:'Farine T65',ratio:1},{ing:'Lait',ratio:0.3},{ing:'Beurre',ratio:0.09}]}
+};
+const FORMATS_DEF = {
+  'Campagne': [{nom:'500g',poids:0.56},{nom:'Kilo',poids:1.15}],
+  'Graines': [{nom:'500g',poids:0.56}],
+  'Classique': [{nom:'Baguette',poids:0.40},{nom:'Kilo',poids:1.15}],
+  'Pain de mie': [{nom:'900g',poids:0.97}]
+};
 
-  // Sauvegarder : On écrit dans le cahier dans le ciel
-  window.saveFournee = function() {
-    const name = document.getElementById('save-name-input').value.trim();
-    if (!name) return;
+let selectedRecettes = new Set();
+let orderedRecettes = [];
+let currentStep = 0;
+let qty = {};
 
-    const dataToSave = {
-      selected: Array.from(selectedRecettes),
-      qty: qty,
-      date: new Date().toISOString()
-    };
-
-    // On envoie à Firebase dans le tiroir "fournees"
-    set(ref(db, 'fournees/' + name), dataToSave)
-      .then(() => {
-        document.getElementById('save-name-input').value = '';
-        closeSaveModal();
-      });
-  };
-
-  // Supprimer : On efface une page du cahier
-  window.deleteFournee = function(name) {
-    if(confirm('Supprimer cette fournée du cloud ?')) {
-      remove(ref(db, 'fournees/' + name));
-    }
-  };
-
-  // ÉCOUTER : Dès qu'un collègue change un truc, ça se met à jour chez toi !
-  onValue(ref(db, 'fournees'), (snapshot) => {
-    const data = snapshot.val() || {};
-    renderSavedList(data); 
+// INITIALISATION
+function init() {
+  Object.keys(FORMATS_DEF).forEach(r => {
+    qty[r] = {};
+    FORMATS_DEF[r].forEach(f => {
+      qty[r][f.nom] = {};
+      CANAUX.forEach(c => qty[r][f.nom][c] = 0);
+    });
   });
 
-  // Charger une fournée du cloud vers ton écran
-  window.loadFournee = function(name, allData) {
-    const d = allData[name];
-    if (!d) return;
-    selectedRecettes = new Set(d.selected);
-    // On remplit les quantités
-    Object.keys(d.qty).forEach(rec => {
-      if (!qty[rec]) return;
-      Object.keys(d.qty[rec]).forEach(fmt => {
-        CANAUX.forEach(c => {
-          qty[rec][fmt][c] = d.qty[rec][fmt][c] || 0;
-        });
-      });
+  const famList = document.getElementById('famille-items');
+  const autresList = document.getElementById('autres-list');
+
+  Object.keys(RECETTES_DEF).forEach(rec => {
+    const el = document.createElement('div');
+    el.className = 'sel-item';
+    el.innerHTML = `<span>${rec}</span><div class="check-circle">✓</div>`;
+    el.onclick = () => window.toggleRecette(rec);
+    el.id = `sel-${rec}`;
+    if(RECETTES_DEF[rec].famille === 'campagne') famList.appendChild(el);
+    else autresList.appendChild(el);
+  });
+}
+
+// FONCTIONS GLOBALES (attachées à window pour le HTML)
+window.toggleRecette = (rec) => {
+  if(selectedRecettes.has(rec)) selectedRecettes.delete(rec);
+  else selectedRecettes.add(rec);
+  document.getElementById(`sel-${rec}`).classList.toggle('selected');
+  document.getElementById('btn-start').disabled = selectedRecettes.size === 0;
+  document.getElementById('famille-group').classList.toggle('any-selected', [...selectedRecettes].some(r => RECETTES_DEF[r].famille === 'campagne'));
+};
+
+window.startSaisie = () => {
+  orderedRecettes = [...selectedRecettes];
+  currentStep = 0;
+  renderSaisieStep();
+  window.goToScreen('screen-saisie');
+};
+
+function renderSaisieStep() {
+  const rec = orderedRecettes[currentStep];
+  document.getElementById('saisie-title').textContent = rec;
+  const container = document.getElementById('saisie-formats');
+  container.innerHTML = '';
+
+  FORMATS_DEF[rec].forEach(fmt => {
+    const div = document.createElement('div');
+    div.style.padding = '10px';
+    div.innerHTML = `<strong>${fmt.nom}</strong>`;
+    CANAUX.forEach(c => {
+      const row = document.createElement('div');
+      row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.padding = '5px 0';
+      row.innerHTML = `<span>${c}</span><input type="number" class="qty-input" value="${qty[rec][fmt.nom][c] || ''}" placeholder="0" oninput="window.updateQty('${rec}','${fmt.nom}','${c}', this.value)">`;
+      div.appendChild(row);
     });
-    updateSelectionUI();
-    closeSaveModal();
-  };
+    container.appendChild(div);
+  });
+  updateLiveTotals();
+}
 
-  // Afficher la liste des fournées du cloud
-  function renderSavedList(allData) {
-    const list = document.getElementById('saved-list');
-    list.innerHTML = '';
-    const names = Object.keys(allData);
-    
-    if (!names.length) {
-      list.innerHTML = '<div style="color:var(--ash);font-size:12px;margin-bottom:12px">Aucune fournée dans le cloud.</div>';
-      return;
-    }
+window.updateQty = (rec, fmt, canal, val) => {
+  qty[rec][fmt][canal] = parseInt(val) || 0;
+  updateLiveTotals();
+};
 
-    names.forEach(name => {
-      const el = document.createElement('div');
-      el.className = 'saved-item';
-      el.innerHTML = `
-        <div class="saved-item-name">${name}</div>
-        <div class="saved-item-del">✕</div>
-      `;
-      // Bouton effacer
-      el.querySelector('.saved-item-del').onclick = (e) => {
-        e.stopPropagation();
-        window.deleteFournee(name);
-      };
-      // Bouton charger
-      el.onclick = () => window.loadFournee(name, allData);
-      list.appendChild(el);
+function updateLiveTotals() {
+  const rec = orderedRecettes[currentStep];
+  let p = 0, k = 0;
+  FORMATS_DEF[rec].forEach(f => {
+    CANAUX.forEach(c => {
+      const v = qty[rec][f.nom][c];
+      p += v; k += v * f.poids;
     });
-  }
+  });
+  document.getElementById('live-pains').textContent = p;
+  document.getElementById('live-kg').textContent = k.toFixed(2);
+}
 
-  // --- GARDE TES ANCIENNES FONCTIONS ICI ---
-  // (Copie ici tout le reste de ton code : CANAUX, RECETTES_DEF, init(), etc.)
-  // N'oublie pas d'ajouter "window." devant les fonctions appelées par tes boutons !
-</script>
+window.nextStep = () => {
+  if(currentStep < orderedRecettes.length - 1) { currentStep++; renderSaisieStep(); }
+  else { window.goToScreen('screen-resume'); renderResume(); }
+};
+
+window.prevStep = () => { if(currentStep > 0) { currentStep--; renderSaisieStep(); } };
+
+window.resetCurrentStep = () => {
+  const rec = orderedRecettes[currentStep];
+  FORMATS_DEF[rec].forEach(f => CANAUX.forEach(c => qty[rec][f.nom][c] = 0));
+  renderSaisieStep();
+};
+
+window.goToScreen = (id) => {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+};
+
+window.goToSelection = () => window.goToScreen('screen-selection');
+
+// FIREBASE
+window.saveFournee = () => {
+  const name = document.getElementById('save-name-input').value.trim();
+  if(!name) return;
+  set(ref(db, 'fournees/' + name), { selected: [...selectedRecettes], qty: qty })
+    .then(() => window.closeSaveModal());
+};
+
+onValue(ref(db, 'fournees'), (snapshot) => {
+  const data = snapshot.val() || {};
+  const list = document.getElementById('saved-list');
+  list.innerHTML = '';
+  Object.keys(data).forEach(name => {
+    const d = document.createElement('div');
+    d.className = 'sel-item';
+    d.innerHTML = `<span>${name}</span>`;
+    d.onclick = () => {
+      qty = data[name].qty;
+      selectedRecettes = new Set(data[name].selected);
+      window.startSaisie();
+      window.closeSaveModal();
+    };
+    list.appendChild(d);
+  });
+});
+
+window.openSaveModal = () => document.getElementById('modal-save').classList.add('open');
+window.closeSaveModal = () => document.getElementById('modal-save').classList.remove('open');
+
+init();
 </script>
 </body>
 </html>
