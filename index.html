@@ -284,30 +284,35 @@ let selectedRecettes=new Set();let orderedRecettes=[];let currentStep=0;let qty=
 
 function poidsCru(rec,fmt){return fmt.poidsCuit/(1-((RECETTES[rec]||{}).perte||0.11));}
 
-// Une recette est "parente" si au moins une autre recette a parent===rec
-function getParentes(){return Object.keys(RECETTES).filter(r=>!RECETTES[r].parent);}
-function getDeclinaisons(parent){return Object.keys(RECETTES).filter(r=>RECETTES[r].parent===parent);}
+// Compatibilité : ancienne structure famille:'campagne' + nouvelle structure parent:'X'
+function getParent(rec){
+  const def=RECETTES[rec]||{};
+  if(def.parent) return def.parent;
+  if(def.famille==='campagne') return 'Campagne';
+  return null;
+}
+function getParentes(){return Object.keys(RECETTES).filter(r=>!getParent(r));}
+function getDeclinaisons(parent){return Object.keys(RECETTES).filter(r=>getParent(r)===parent);}
 function getFamille(parent){return [parent,...getDeclinaisons(parent)];}
-// Recettes qui ont des déclinaisons
 function getParentesAvecDecli(){return getParentes().filter(r=>getDeclinaisons(r).length>0);}
-// Recettes sans déclinaisons et sans parent → "autres pétries"
 function getAutresSimples(){return getParentes().filter(r=>getDeclinaisons(r).length===0);}
-// Toutes les recettes d'une famille (parente + déclinaisons) pour les calculs
-function getFamilleParent(rec){return RECETTES[rec]&&RECETTES[rec].parent?RECETTES[rec].parent:rec;}
+function getFamilleParent(rec){return getParent(rec)||rec;}
 function initQty(){qty={};Object.keys(FORMATS).forEach(rec=>{qty[rec]={};(FORMATS[rec]||[]).forEach(fmt=>{qty[rec][fmt.nom]={};CANAUX.forEach(c=>{qty[rec][fmt.nom][c]=0;});});});}
 function mergeQty(data){Object.keys(data||{}).forEach(rec=>{if(!qty[rec])return;Object.keys(data[rec]||{}).forEach(fmt=>{if(!qty[rec][fmt])return;CANAUX.forEach(c=>{qty[rec][fmt][c]=(data[rec][fmt]||{})[c]||0;});});});}
 
 // ── INIT ──
 async function init(){
-  showToast('Chargement…');
-  const saved=await fbGet('config');
-  if(saved){if(saved.recettes)RECETTES=saved.recettes;if(saved.formats)FORMATS=saved.formats;if(saved.levains)LEVAINS=saved.levains;}
-  initQty();
-  const lastQty=await fbGet('session/qty');
-  if(lastQty) mergeQty(lastQty);
+  try{
+    const saved=await fbGet('config');
+    if(saved){if(saved.recettes)RECETTES=saved.recettes;if(saved.formats)FORMATS=saved.formats;if(saved.levains)LEVAINS=saved.levains;}
+    initQty();
+    const lastQty=await fbGet('session/qty');
+    if(lastQty) mergeQty(lastQty);
+  }catch(e){
+    initQty();
+  }
   renderSelection();
   updateProgress();
-  showToast('Prêt ✓');
   fbListen('fournees',renderSavedList);
 }
 
