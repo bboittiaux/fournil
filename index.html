@@ -31,6 +31,7 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
+  height: 100vh;
   height: 100dvh;
   width: 100%;
   max-width: 900px;
@@ -850,7 +851,13 @@ function buildRecCard(rec) {
   const parentes = getParentes().filter(p => p !== rec);
   
   let bHTML = `<div class="editor-section-title">Perte à la cuisson</div><div class="field-row"><span class="field-label">Perte moyenne</span><input class="field-input" type="number" step="1" min="0" max="50" value="${Math.round((def.perte || PERTE_CUISSON_DEFAUT) * 100)}" data-perte="${rec}"><span class="field-unit">%</span></div><div class="apercu-box" id="apercu-${rk}">${buildApercu(rec, fmts, def.perte || PERTE_CUISSON_DEFAUT)}</div>`;
-  bHTML += `<div class="editor-section-title">Famille (cuve)</div><div class="field-row"><span class="field-label">Rattacher à</span><select class="field-input wide" data-parent-sel="${rec}"><option value="">— Pétrie indépendante —</option>${parentes.map(p => `<option value="${p}"${def.parent === p ? ' selected' : ''}>${p}</option>`).join('')}</select></div>`;
+  
+  if (declinaisons.length === 0) {
+    bHTML += `<div class="editor-section-title">Famille (cuve)</div><div class="field-row"><span class="field-label">Rattacher à</span><select class="field-input wide" data-parent-sel="${rec}"><option value="">— Pétrie indépendante —</option>${parentes.map(p => `<option value="${p}"${def.parent === p ? ' selected' : ''}>${p}</option>`).join('')}</select></div>`;
+  } else {
+    bHTML += `<div class="editor-section-title">Famille (cuve)</div><div class="famille-note" style="margin:0 0 10px 0">Cette recette a des déclinaisons. Elle est donc la cheffe de sa propre cuve et ne peut pas être rattachée ailleurs.</div>`;
+  }
+
   bHTML += `<div class="editor-section-title">Formats (poids cuit visé)</div>`;
   fmts.forEach((fmt, idx) => { bHTML += `<div class="fmt-edit-row"><input class="field-input wide" type="text" value="${fmt.nom}" data-fmt-rec="${rec}" data-fmt-idx="${idx}" data-fmt-field="nom"><input class="field-input" type="number" step="0.001" value="${fmt.poidsCuit}" data-fmt-rec="${rec}" data-fmt-idx="${idx}" data-fmt-field="poidsCuit"><span class="field-unit">kg cuit</span><button class="btn-del" data-fmt-del-rec="${rec}" data-fmt-del-idx="${idx}">✕</button></div>`; });
   bHTML += `<button class="btn-add" data-add-fmt="${rec}">+ Ajouter format</button>`;
