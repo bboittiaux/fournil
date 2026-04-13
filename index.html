@@ -31,8 +31,8 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: 100vh;      /* Parachute pour anciens navigateurs */
+  height: 100dvh;     /* Hauteur moderne */
   width: 100%;
   max-width: 900px;
   margin: 0 auto;
@@ -352,13 +352,13 @@ const db = getDatabase(fbApp);
 const syncDot = document.getElementById('sync-dot');
 function setSyncDot(s) { syncDot.className = 'sync-dot' + (s === 'ok' ? ' ok' : s === 'err' ? ' err' : ''); }
 
+// AVEC LE MOUCHARD DE CONSOLE
 async function fbSet(path, data) {
   try { 
     await set(ref(db, path), data); 
     setSyncDot('ok'); 
     return true; 
-  } 
-  catch(e) { 
+  } catch(e) { 
     setSyncDot('err'); 
     showToast('Erreur cloud'); 
     console.error("🚨 DÉTAIL DE L'ERREUR FIREBASE :", e); 
@@ -482,8 +482,13 @@ function mergeQty(data) {
   Object.keys(data || {}).forEach(rec => {
     if (!qty[rec]) return;
     Object.keys(data[rec] || {}).forEach(fmt => {
-      if (!qty[rec][fmt]) return;
-      CANAUX.forEach(c => { qty[rec][fmt][c] = (data[rec][fmt] || {})[c] || 0; });
+      // Reconvertit les tirets en points pour le chargement
+      let targetFmt = fmt;
+      if (!qty[rec][fmt] && fmt.includes('-') && qty[rec][fmt.replace(/-/g, '.')]) {
+        targetFmt = fmt.replace(/-/g, '.');
+      }
+      if (!qty[rec][targetFmt]) return;
+      CANAUX.forEach(c => { qty[rec][targetFmt][c] = (data[rec][fmt] || {})[c] || 0; });
     });
   });
 }
@@ -493,6 +498,22 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── FONCTION GLOBALE DE SAUVEGARDE BROUILLON ──
+function saveSessionQty() {
+  const safeQty = {};
+  Object.keys(qty).forEach(rec => {
+    let safeRec = rec.replace(/[.#$\[\]/]/g, '-').trim();
+    if (!safeRec) safeRec = "Recette_Inconnue";
+    safeQty[safeRec] = {};
+    Object.keys(qty[rec]).forEach(fmt => {
+      let safeFmt = fmt.replace(/[.#$\[\]/]/g, '-').trim();
+      if (!safeFmt) safeFmt = "Standard";
+      safeQty[safeRec][safeFmt] = qty[rec][fmt];
+    });
+  });
+  fbSet('session/qty', safeQty).catch(() => {});
 }
 
 // ── 5. INITIALISATION ──
@@ -670,7 +691,7 @@ document.getElementById('saisie-formats').addEventListener('click', (e) => {
     qty[rec][fmt][canal] = nv;
     updSub(rec, fmt, canal);
     updateLiveTotals(rec);
-    fbSet('session/qty', qty).catch(() => {});
+    saveSessionQty();
   }
 });
 
@@ -680,7 +701,7 @@ document.getElementById('saisie-formats').addEventListener('input', (e) => {
     qty[rec][fmt][canal] = parseInt(e.target.value) || 0;
     updSub(rec, fmt, canal);
     updateLiveTotals(rec);
-    fbSet('session/qty', qty).catch(() => {});
+    saveSessionQty();
   }
 });
 
@@ -861,6 +882,7 @@ function buildRecCard(rec) {
   
   let bHTML = `<div class="editor-section-title">Perte à la cuisson</div><div class="field-row"><span class="field-label">Perte moyenne</span><input class="field-input" type="number" step="1" min="0" max="50" value="${Math.round((def.perte || PERTE_CUISSON_DEFAUT) * 100)}" data-perte="${rec}"><span class="field-unit">%</span></div><div class="apercu-box" id="apercu-${rk}">${buildApercu(rec, fmts, def.perte || PERTE_CUISSON_DEFAUT)}</div>`;
   
+  // Correction Grand-parents
   if (declinaisons.length === 0) {
     bHTML += `<div class="editor-section-title">Famille (cuve)</div><div class="field-row"><span class="field-label">Rattacher à</span><select class="field-input wide" data-parent-sel="${rec}"><option value="">— Pétrie indépendante —</option>${parentes.map(p => `<option value="${p}"${def.parent === p ? ' selected' : ''}>${p}</option>`).join('')}</select></div>`;
   } else {
@@ -900,7 +922,7 @@ function buildRecCard(rec) {
   body.querySelectorAll('[data-add-incl]').forEach(btn => { btn.addEventListener('click', () => { const r = btn.dataset.addIncl; if (!RECETTES[r].inclusions) RECETTES[r].inclusions = []; RECETTES[r].inclusions.push({ ing: '', ratio: 0 }); renderEditor(r); }); });
   body.querySelectorAll('[data-new-decli]').forEach(btn => { btn.addEventListener('click', () => { const pRec = btn.dataset.newDecli; const nom = prompt(`Nom de la déclinaison de "${pRec}" :`); if (!nom || !nom.trim()) return; const n = nom.trim(); if (RECETTES[n]) { alert('Ce nom existe déjà.'); return; } RECETTES[n] = { parent: pRec, perte: RECETTES[pRec].perte || PERTE_CUISSON_DEFAUT, inclusions: [], ingredients: JSON.parse(JSON.stringify(RECETTES[pRec].ingredients)) }; FORMATS[n] = JSON.parse(JSON.stringify(FORMATS[pRec] || [])); renderEditor(n); renderSelection(); showToast(`"${n}" créée ✓`); }); });
   
-  // Correction "Fantôme" pour les suppressions
+  // Nettoyage Fantômes
   body.querySelectorAll('[data-del-rec]').forEach(btn => { btn.addEventListener('click', () => { const r = btn.dataset.delRec; if (!confirm(`Supprimer "${r}" ?`)) return; getDeclinaisons(r).forEach(d => { delete RECETTES[d]; delete FORMATS[d]; selectedRecettes.delete(d); }); delete RECETTES[r]; delete FORMATS[r]; selectedRecettes.delete(r); renderEditor(); renderSelection(); }); });
   
   card.appendChild(header); card.appendChild(body); return card;
@@ -984,7 +1006,6 @@ document.getElementById('btn-go-recettes').addEventListener('click', () => goTo(
 document.getElementById('btn-rec-back').addEventListener('click', () => goTo('screen-selection'));
 document.getElementById('btn-save-rec').addEventListener('click', async () => { showToast('Enregistrement…'); const ok = await fbSet('config', { recettes: RECETTES, formats: FORMATS, levains: LEVAINS }); if (ok) { initQty(); renderSelection(); showToast('Recettes enregistrées ✓'); } });
 
-// Correction de la fermeture du tiroir lors de la création
 document.getElementById('btn-new-lev').addEventListener('click', () => { const name = prompt('Nom du nouveau levain :'); if (!name || !name.trim()) return; const n = name.trim(); if (LEVAINS[n]) { alert('Ce levain existe déjà.'); return; } LEVAINS[n] = [{ ing: 'Farine', ratio: 1.0 }, { ing: 'Eau', ratio: 0.5 }, { ing: 'Souche', ratio: 0.15 }]; renderEditor(n); showToast(`Levain "${n}" créé ✓`); });
 document.getElementById('btn-new-rec').addEventListener('click', () => { const name = prompt('Nom de la nouvelle recette :'); if (!name || !name.trim()) return; const n = name.trim(); if (RECETTES[n]) { alert('Cette recette existe déjà.'); return; } RECETTES[n] = { perte: PERTE_CUISSON_DEFAUT, inclusions: [], ingredients: [{ ing: 'Farine', ratio: 1.0 }] }; FORMATS[n] = [{ nom: '500g', poidsCuit: 0.50 }]; renderEditor(n); showToast(`"${n}" créée`); });
 
@@ -993,35 +1014,36 @@ document.getElementById('btn-start').addEventListener('click', startSaisie);
 document.getElementById('btn-prev').addEventListener('click', () => { if (currentStep > 0) { currentStep--; renderStep(); } });
 document.getElementById('btn-go-sel').addEventListener('click', () => goTo('screen-selection'));
 document.getElementById('btn-next').addEventListener('click', () => { if (currentStep < orderedRecettes.length - 1) { currentStep++; renderStep(); } else { renderResume(); goTo('screen-resume'); } });
-document.getElementById('btn-raz').addEventListener('click', () => { const rec = orderedRecettes[currentStep]; if (!confirm(`Remettre à 0 les quantités pour ${rec} ?`)) return; if (qty[rec]) Object.keys(qty[rec]).forEach(fmt => { CANAUX.forEach(c => { qty[rec][fmt][c] = 0; }); }); fbSet('session/qty', qty).catch(() => {}); renderFormats(rec); updateLiveTotals(rec); });
+
+// Les RAZ sauvegardent maintenant le brouillon vide
+document.getElementById('btn-raz').addEventListener('click', () => { const rec = orderedRecettes[currentStep]; if (!confirm(`Remettre à 0 les quantités pour ${rec} ?`)) return; if (qty[rec]) Object.keys(qty[rec]).forEach(fmt => { CANAUX.forEach(c => { qty[rec][fmt][c] = 0; }); }); saveSessionQty(); renderFormats(rec); updateLiveTotals(rec); });
 document.getElementById('btn-resume-sel').addEventListener('click', () => goTo('screen-selection'));
 document.getElementById('btn-resume-saisie').addEventListener('click', () => { goTo('screen-saisie'); renderStep(); });
-document.getElementById('btn-reset-all').addEventListener('click', () => { if (!confirm('Tout remettre à zéro ?')) return; initQty(); fbSet('session/qty', qty).catch(() => {}); selectedRecettes.clear(); updateSelUI(); goTo('screen-selection'); });
+document.getElementById('btn-reset-all').addEventListener('click', () => { if (!confirm('Tout remettre à zéro ?')) return; initQty(); saveSessionQty(); selectedRecettes.clear(); updateSelUI(); goTo('screen-selection'); });
 
 document.getElementById('btn-open-modal').addEventListener('click', () => document.getElementById('modal-save').classList.add('open'));
 document.getElementById('modal-save').addEventListener('click', e => { if (e.target === document.getElementById('modal-save')) document.getElementById('modal-save').classList.remove('open'); });
+
+// Le gros bouton de sauvegarde final (blindé contre les caractères interdits et vides)
 document.getElementById('btn-save-fournee').addEventListener('click', async () => { 
   let name = document.getElementById('save-name-input').value.trim(); 
   if (!name) return; 
 
-  // 1. Nettoyage du nom de la fournée
   name = name.replace(/[.#$\[\]/]/g, '-');
 
-  // 2. Nettoyage des quantités, des formats ET des cases vides
   const safeQty = {};
   Object.keys(qty).forEach(rec => {
     let safeRec = rec.replace(/[.#$\[\]/]/g, '-').trim(); 
-    if (!safeRec) safeRec = "Recette_Inconnue"; // Anti-vide
+    if (!safeRec) safeRec = "Recette_Inconnue";
     safeQty[safeRec] = {};
     
     Object.keys(qty[rec]).forEach(fmt => {
       let safeFmt = fmt.replace(/[.#$\[\]/]/g, '-').trim(); 
-      if (!safeFmt) safeFmt = "Standard"; // LA CORRECTION EST ICI (Anti-vide)
+      if (!safeFmt) safeFmt = "Standard";
       safeQty[safeRec][safeFmt] = qty[rec][fmt];
     });
   });
 
-  // 3. On envoie au Cloud
   const safeSelected = [...selectedRecettes].map(r => {
     let sr = r.replace(/[.#$\[\]/]/g, '-').trim();
     return sr ? sr : "Recette_Inconnue";
@@ -1038,6 +1060,7 @@ document.getElementById('btn-save-fournee').addEventListener('click', async () =
     document.getElementById('modal-save').classList.remove('open'); 
   } 
 });
+
 document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('modal-save').classList.remove('open'));
 
 document.getElementById('exp-pdf').addEventListener('click', exportPDF);
