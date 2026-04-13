@@ -589,6 +589,15 @@ function buildRecCard(rec){
   const body=document.createElement('div');body.className='editor-body';
   const rk=rec.replace(/[^a-zA-Z0-9]/g,'_');
   let bHTML=`<div class="editor-section-title">Perte à la cuisson</div><div class="field-row"><span class="field-label">Perte cuisson</span><input class="field-input" type="number" step="1" min="0" max="50" value="${Math.round((def.perte||0.11)*100)}" data-perte="${rec}"><span class="field-unit">%</span></div><div class="apercu-box" id="apercu-${rk}">${buildApercu(rec,fmts,def.perte||0.11)}</div>`;
+
+  // Sélecteur parent : permet de rattacher/détacher une recette d'une famille
+  const parentes=getParentes().filter(p=>p!==rec);
+  bHTML+=`<div class="editor-section-title">Famille (cuve)</div>
+    <div class="field-row"><span class="field-label">Rattacher à</span>
+    <select class="field-input" data-parent-sel="${rec}" style="width:160px;text-align:left">
+      <option value="">— Pétrie indépendante —</option>
+      ${parentes.map(p=>`<option value="${p}"${def.parent===p?' selected':''}>${p}</option>`).join('')}
+    </select></div>`;
   bHTML+=`<div class="editor-section-title">Formats (poids cuit visé)</div>`;
   fmts.forEach((fmt,idx)=>{bHTML+=`<div class="fmt-edit-row"><input class="field-input" style="width:100px;text-align:left" type="text" value="${fmt.nom}" data-fmt-rec="${rec}" data-fmt-idx="${idx}" data-fmt-field="nom"><input class="field-input" type="number" step="0.001" value="${fmt.poidsCuit}" data-fmt-rec="${rec}" data-fmt-idx="${idx}" data-fmt-field="poidsCuit"><span class="field-unit">kg cuit</span><button class="btn-del" data-fmt-del-rec="${rec}" data-fmt-del-idx="${idx}">✕</button></div>`;});
   bHTML+=`<button class="btn-add" data-add-fmt="${rec}">+ Ajouter format</button>`;
@@ -608,47 +617,44 @@ function buildRecCard(rec){
   body.querySelectorAll('[data-fmt-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{fmtRec,fmtIdx,fmtField}=inp.dataset;FORMATS[fmtRec][parseInt(fmtIdx)][fmtField]=fmtField==='poidsCuit'?parseFloat(inp.value)||0:inp.value;const ap=document.getElementById('apercu-'+fmtRec.replace(/[^a-zA-Z0-9]/g,'_'));if(ap)ap.innerHTML=buildApercu(fmtRec,FORMATS[fmtRec]||[],(RECETTES[fmtRec]||{}).perte||0.11);});});
   body.querySelectorAll('[data-fmt-del-rec]').forEach(btn=>{btn.addEventListener('click',()=>{FORMATS[btn.dataset.fmtDelRec].splice(parseInt(btn.dataset.fmtDelIdx),1);renderEditor();});});
   body.querySelectorAll('[data-add-fmt]').forEach(btn=>{btn.addEventListener('click',()=>{
-    const r=btn.dataset.addFmt;
-    if(!FORMATS[r])FORMATS[r]=[];
-    FORMATS[r].push({nom:'',poidsCuit:0.50});
-    const idx=FORMATS[r].length-1;
-    const newRow=document.createElement('div');newRow.className='fmt-edit-row';
-    newRow.innerHTML=`<input class="field-input" style="width:100px;text-align:left" type="text" placeholder="Nom" data-fmt-rec="${r}" data-fmt-idx="${idx}" data-fmt-field="nom"><input class="field-input" type="number" step="0.001" value="0.5" data-fmt-rec="${r}" data-fmt-idx="${idx}" data-fmt-field="poidsCuit"><span class="field-unit">kg cuit</span><button class="btn-del" data-fmt-del-rec="${r}" data-fmt-del-idx="${idx}">✕</button>`;
-    newRow.querySelectorAll('[data-fmt-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{fmtRec,fmtIdx,fmtField}=inp.dataset;FORMATS[fmtRec][parseInt(fmtIdx)][fmtField]=fmtField==='poidsCuit'?parseFloat(inp.value)||0:inp.value;const ap=document.getElementById('apercu-'+fmtRec.replace(/[^a-zA-Z0-9]/g,'_'));if(ap)ap.innerHTML=buildApercu(fmtRec,FORMATS[fmtRec]||[],(RECETTES[fmtRec]||{}).perte||0.11);});});
-    newRow.querySelectorAll('[data-fmt-del-rec]').forEach(b=>{b.addEventListener('click',()=>{FORMATS[b.dataset.fmtDelRec].splice(parseInt(b.dataset.fmtDelIdx),1);renderEditor();});});
-    btn.parentNode.insertBefore(newRow,btn);
+    const r=btn.dataset.addFmt;if(!FORMATS[r])FORMATS[r]=[];FORMATS[r].push({nom:'',poidsCuit:0.50});
+    const idx=FORMATS[r].length-1;const row=document.createElement('div');row.className='fmt-edit-row';
+    row.innerHTML=`<input class="field-input" style="width:100px;text-align:left" type="text" placeholder="Nom" data-fmt-rec="${r}" data-fmt-idx="${idx}" data-fmt-field="nom"><input class="field-input" type="number" step="0.001" value="0.5" data-fmt-rec="${r}" data-fmt-idx="${idx}" data-fmt-field="poidsCuit"><span class="field-unit">kg cuit</span><button class="btn-del" data-fmt-del-rec="${r}" data-fmt-del-idx="${idx}">✕</button>`;
+    row.querySelectorAll('[data-fmt-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{fmtRec,fmtIdx,fmtField}=inp.dataset;FORMATS[fmtRec][parseInt(fmtIdx)][fmtField]=fmtField==='poidsCuit'?parseFloat(inp.value)||0:inp.value;const ap=document.getElementById('apercu-'+fmtRec.replace(/[^a-zA-Z0-9]/g,'_'));if(ap)ap.innerHTML=buildApercu(fmtRec,FORMATS[fmtRec]||[],(RECETTES[fmtRec]||{}).perte||0.11);});});
+    row.querySelectorAll('[data-fmt-del-rec]').forEach(b=>{b.addEventListener('click',()=>{FORMATS[b.dataset.fmtDelRec].splice(parseInt(b.dataset.fmtDelIdx),1);renderEditor();});});
+    btn.parentNode.insertBefore(row,btn);
+  });});
+  body.querySelectorAll('[data-parent-sel]').forEach(sel=>{sel.addEventListener('change',()=>{
+    const r=sel.dataset.parentSel;const v=sel.value||null;
+    if(v) RECETTES[r].parent=v; else delete RECETTES[r].parent;
+    const isD=!!(v&&RECETTES[v]&&!RECETTES[v].parent);
+    const wrap=header.querySelector('.editor-recette-name-wrap');
+    const old=wrap.querySelector('.editor-famille-tag');if(old)old.remove();
+    if(isD){const t=document.createElement('span');t.className='editor-famille-tag';t.textContent=`↳ décli. de ${v}`;wrap.appendChild(t);}
+    renderSelection();
   });});
   body.querySelectorAll('[data-ing-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{ingRec,ingIdx,ingField}=inp.dataset;RECETTES[ingRec].ingredients[parseInt(ingIdx)][ingField]=ingField==='ratio'?parseFloat(inp.value)||0:inp.value;});});
   body.querySelectorAll('[data-del-ing-rec]').forEach(btn=>{btn.addEventListener('click',()=>{RECETTES[btn.dataset.delIngRec].ingredients.splice(parseInt(btn.dataset.delIngIdx),1);renderEditor();});});
-  body.querySelectorAll('[data-add-ing]').forEach(btn=>{btn.addEventListener('click',()=>{RECETTES[btn.dataset.addIng].ingredients.push({ing:'',ratio:0});renderEditor();});});
-  body.querySelectorAll('[data-incl-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{inclRec,inclIdx,inclField}=inp.dataset;RECETTES[inclRec].inclusions[parseInt(inclIdx)][inclField]=inclField==='ratio'?parseFloat(inp.value)||0:inp.value;});});
-  body.querySelectorAll('[data-del-incl-rec]').forEach(btn=>{btn.addEventListener('click',()=>{
-    const r=btn.dataset.delInclRec;RECETTES[r].inclusions.splice(parseInt(btn.dataset.delInclIdx),1);
-    renderEditor();
-    // Rouvrir la carte
-    setTimeout(()=>{const c=document.querySelector(`[data-rec="${r}"] .editor-body`);if(c){c.classList.add('open');}},10);
-  });});
-  body.querySelectorAll('[data-add-incl]').forEach(btn=>{btn.addEventListener('click',()=>{
-    const r=btn.dataset.addIncl;
-    if(!RECETTES[r].inclusions)RECETTES[r].inclusions=[];
-    RECETTES[r].inclusions.push({ing:'',ratio:0});
-    // Ajouter la ligne directement sans reconstruire toute la page
-    const inclSection=btn.previousElementSibling;
-    const newRow=document.createElement('div');newRow.className='ing-edit-row';
-    const idx=RECETTES[r].inclusions.length-1;
-    newRow.innerHTML=`<input class="field-input wide" type="text" placeholder="Ingrédient" data-incl-rec="${r}" data-incl-idx="${idx}" data-incl-field="ing"><input class="field-input" type="number" step="0.001" value="0" data-incl-rec="${r}" data-incl-idx="${idx}" data-incl-field="ratio"><span class="field-unit">ratio</span><button class="btn-del" data-del-incl-rec="${r}" data-del-incl-idx="${idx}">✕</button>`;
-    newRow.querySelectorAll('[data-incl-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{inclRec,inclIdx,inclField}=inp.dataset;RECETTES[inclRec].inclusions[parseInt(inclIdx)][inclField]=inclField==='ratio'?parseFloat(inp.value)||0:inp.value;});});
-    newRow.querySelectorAll('[data-del-incl-rec]').forEach(b=>{b.addEventListener('click',()=>{RECETTES[b.dataset.delInclRec].inclusions.splice(parseInt(b.dataset.delInclIdx),1);renderEditor();});});
-    btn.parentNode.insertBefore(newRow,btn);
-  });});
   body.querySelectorAll('[data-add-ing]').forEach(btn=>{btn.addEventListener('click',()=>{
-    const r=btn.dataset.addIng;
-    RECETTES[r].ingredients.push({ing:'',ratio:0});
-    const idx=RECETTES[r].ingredients.length-1;
-    const row=document.createElement('div');row.className='ing-edit-row';
+    const r=btn.dataset.addIng;RECETTES[r].ingredients.push({ing:'',ratio:0});
+    const idx=RECETTES[r].ingredients.length-1;const row=document.createElement('div');row.className='ing-edit-row';
     row.innerHTML=`<input class="field-input wide" type="text" placeholder="Ingrédient" data-ing-rec="${r}" data-ing-idx="${idx}" data-ing-field="ing"><input class="field-input" type="number" step="0.001" value="0" data-ing-rec="${r}" data-ing-idx="${idx}" data-ing-field="ratio"><span class="field-unit">ratio</span><button class="btn-del" data-del-ing-rec="${r}" data-del-ing-idx="${idx}">✕</button>`;
     row.querySelectorAll('[data-ing-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{ingRec,ingIdx,ingField}=inp.dataset;RECETTES[ingRec].ingredients[parseInt(ingIdx)][ingField]=ingField==='ratio'?parseFloat(inp.value)||0:inp.value;});});
     row.querySelectorAll('[data-del-ing-rec]').forEach(b=>{b.addEventListener('click',()=>{RECETTES[b.dataset.delIngRec].ingredients.splice(parseInt(b.dataset.delIngIdx),1);renderEditor();});});
+    btn.parentNode.insertBefore(row,btn);
+  });});
+  body.querySelectorAll('[data-incl-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{inclRec,inclIdx,inclField}=inp.dataset;RECETTES[inclRec].inclusions[parseInt(inclIdx)][inclField]=inclField==='ratio'?parseFloat(inp.value)||0:inp.value;});});
+  body.querySelectorAll('[data-del-incl-rec]').forEach(btn=>{btn.addEventListener('click',()=>{
+    const r=btn.dataset.delInclRec;RECETTES[r].inclusions.splice(parseInt(btn.dataset.delInclIdx),1);
+    renderEditor();setTimeout(()=>{const c=document.querySelector(`[data-rec="${r}"] .editor-body`);if(c)c.classList.add('open');},10);
+  });});
+  body.querySelectorAll('[data-add-incl]').forEach(btn=>{btn.addEventListener('click',()=>{
+    const r=btn.dataset.addIncl;if(!RECETTES[r].inclusions)RECETTES[r].inclusions=[];
+    RECETTES[r].inclusions.push({ing:'',ratio:0});
+    const idx=RECETTES[r].inclusions.length-1;const row=document.createElement('div');row.className='ing-edit-row';
+    row.innerHTML=`<input class="field-input wide" type="text" placeholder="Ingrédient" data-incl-rec="${r}" data-incl-idx="${idx}" data-incl-field="ing"><input class="field-input" type="number" step="0.001" value="0" data-incl-rec="${r}" data-incl-idx="${idx}" data-incl-field="ratio"><span class="field-unit">ratio</span><button class="btn-del" data-del-incl-rec="${r}" data-del-incl-idx="${idx}">✕</button>`;
+    row.querySelectorAll('[data-incl-rec]').forEach(inp=>{inp.addEventListener('input',()=>{const{inclRec,inclIdx,inclField}=inp.dataset;RECETTES[inclRec].inclusions[parseInt(inclIdx)][inclField]=inclField==='ratio'?parseFloat(inp.value)||0:inp.value;});});
+    row.querySelectorAll('[data-del-incl-rec]').forEach(b=>{b.addEventListener('click',()=>{RECETTES[b.dataset.delInclRec].inclusions.splice(parseInt(b.dataset.delInclIdx),1);renderEditor();});});
     btn.parentNode.insertBefore(row,btn);
   });});
   body.querySelectorAll('[data-new-decli]').forEach(btn=>{btn.addEventListener('click',()=>{
