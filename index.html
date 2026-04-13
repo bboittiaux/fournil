@@ -353,8 +353,17 @@ const syncDot = document.getElementById('sync-dot');
 function setSyncDot(s) { syncDot.className = 'sync-dot' + (s === 'ok' ? ' ok' : s === 'err' ? ' err' : ''); }
 
 async function fbSet(path, data) {
-  try { await set(ref(db, path), data); setSyncDot('ok'); return true; } 
-  catch(e) { setSyncDot('err'); showToast('Erreur cloud'); return false; }
+  try { 
+    await set(ref(db, path), data); 
+    setSyncDot('ok'); 
+    return true; 
+  } 
+  catch(e) { 
+    setSyncDot('err'); 
+    showToast('Erreur cloud'); 
+    console.error("🚨 DÉTAIL DE L'ERREUR FIREBASE :", e); 
+    return false; 
+  }
 }
 async function fbGet(path) {
   try { const s = await get(ref(db, path)); return s.val(); } 
