@@ -984,7 +984,33 @@ document.getElementById('btn-reset-all').addEventListener('click', () => { if (!
 
 document.getElementById('btn-open-modal').addEventListener('click', () => document.getElementById('modal-save').classList.add('open'));
 document.getElementById('modal-save').addEventListener('click', e => { if (e.target === document.getElementById('modal-save')) document.getElementById('modal-save').classList.remove('open'); });
-document.getElementById('btn-save-fournee').addEventListener('click', async () => { const name = document.getElementById('save-name-input').value.trim(); if (!name) return; const ok = await fbSet('fournees/' + name, { selected: [...selectedRecettes], qty: qty }); if (ok) { document.getElementById('save-name-input').value = ''; showToast(`"${name}" sauvegardée ✓`); document.getElementById('modal-save').classList.remove('open'); } });
+document.getElementById('btn-save-fournee').addEventListener('click', async () => { 
+  const name = document.getElementById('save-name-input').value.trim(); 
+  if (!name) return; 
+  
+  // NOUVEAU : Fonction qui nettoie les points dans l'objet qty
+  const safeQty = JSON.parse(JSON.stringify(qty));
+  Object.keys(safeQty).forEach(rec => {
+    Object.keys(safeQty[rec]).forEach(fmt => {
+      if (fmt.includes('.')) {
+        safeQty[rec][fmt.replace(/\./g, '-')] = safeQty[rec][fmt];
+        delete safeQty[rec][fmt];
+      }
+    });
+  });
+
+  // On envoie 'safeQty' au lieu de 'qty'
+  const ok = await fbSet('fournees/' + name, { 
+    selected: [...selectedRecettes], 
+    qty: safeQty 
+  }); 
+  
+  if (ok) { 
+    document.getElementById('save-name-input').value = ''; 
+    showToast(`"${name}" sauvegardée ✓`); 
+    document.getElementById('modal-save').classList.remove('open'); 
+  } 
+});
 document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('modal-save').classList.remove('open'));
 
 document.getElementById('exp-pdf').addEventListener('click', exportPDF);
