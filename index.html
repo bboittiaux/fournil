@@ -31,8 +31,8 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
-  height: 100vh;      /* Parachute pour anciens navigateurs */
-  height: 100dvh;     /* Hauteur moderne */
+  height: 100vh;      
+  height: 100dvh;     
   width: 100%;
   max-width: 900px;
   margin: 0 auto;
@@ -197,6 +197,61 @@ html, body {
 .btn-danger-full { background: var(--red-bg); color: var(--red); border: none; padding: 12px; border-radius: 6px; font-family: 'Raleway', sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px; }
 .apercu-box { font-size: 11px; line-height: 2; background: var(--paper); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-weight: 500; }
 
+/* ── FERMENTATION TOGGLE (saisie) ── */
+.ferm-section { margin: 0 10px 4px; }
+.ferm-section-lbl { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--tan-dark); font-weight: 700; margin-bottom: 6px; }
+.ferm-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+.ferm-btn { flex: 1; padding: 10px 8px; border-radius: 10px; border: 2px solid var(--tan); background: var(--white); cursor: pointer; text-align: center; transition: all 0.12s; user-select: none; }
+.ferm-btn:active { opacity: 0.8; }
+.ferm-btn .ferm-icon { font-size: 18px; margin-bottom: 3px; }
+.ferm-btn .ferm-name { font-size: 12px; font-weight: 700; color: var(--tan-dark); }
+.ferm-btn .ferm-desc { font-size: 9px; color: var(--tan-dark); margin-top: 2px; }
+.ferm-btn.ferm-j1 { border-color: var(--dark); background: var(--dark); }
+.ferm-btn.ferm-j1 .ferm-name, .ferm-btn.ferm-j1 .ferm-desc { color: var(--paper); }
+.ferm-btn.ferm-direct { border-color: var(--red); background: var(--red); }
+.ferm-btn.ferm-direct .ferm-name, .ferm-btn.ferm-direct .ferm-desc { color: var(--paper); }
+
+/* ── LEVAIN RATIO OVERRIDE (saisie) ── */
+.levain-override-block { background: var(--white); border-radius: 8px; border: 1px solid var(--paper2); padding: 10px 14px; margin: 0 10px 14px; }
+.levain-override-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.levain-override-row:last-of-type { margin-bottom: 0; }
+.levain-override-name { font-size: 11px; font-weight: 600; color: var(--dark); flex: 1; }
+.levain-override-input { width: 62px; padding: 6px 8px; border: 1.5px solid var(--tan); border-radius: 6px; font-family: 'Raleway', sans-serif; font-size: 13px; font-weight: 700; color: var(--red); text-align: right; outline: none; background: var(--white); }
+.levain-override-input:focus { border-color: var(--red); }
+.levain-override-unit { font-size: 10px; color: var(--tan-dark); font-weight: 600; white-space: nowrap; }
+.levain-override-hint { font-size: 9px; color: var(--tan-dark); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--paper2); font-style: italic; }
+
+/* ── BLOCS FERMENTATION (résumé) ── */
+.ferm-bloc { border-radius: 10px; overflow: hidden; margin: 0 10px 12px; }
+.ferm-bloc-header { padding: 11px 15px; }
+.ferm-bloc-header.j1 { background: var(--dark); }
+.ferm-bloc-header.direct { background: var(--red); }
+.ferm-bloc-title { font-family: 'Amatic SC', cursive; font-size: 22px; font-weight: 700; color: var(--paper); }
+.ferm-bloc-sub { font-size: 9px; color: rgba(255,255,255,0.65); font-weight: 600; margin-top: 2px; }
+.ferm-bloc-steps { background: var(--white); border: 1px solid var(--paper2); border-top: none; border-radius: 0 0 10px 10px; }
+.ferm-step { display: flex; align-items: flex-start; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--paper2); }
+.ferm-step:first-child { border-top: none; }
+.ferm-step-num { width: 20px; height: 20px; border-radius: 50%; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; color: var(--paper); }
+.ferm-step-num.j1 { background: var(--dark); }
+.ferm-step-num.direct { background: var(--red); }
+.ferm-step-main { font-size: 12px; font-weight: 700; color: var(--dark); }
+.ferm-step-detail { font-size: 10px; color: var(--tan-dark); margin-top: 2px; line-height: 1.5; }
+.ferm-tag { display: inline-block; background: var(--paper2); color: var(--dark); font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-right: 3px; }
+.ferm-recap-bar { background: var(--white); border-radius: 8px; border: 1px solid var(--paper2); overflow: hidden; margin: 0 10px 8px; }
+.ferm-recap-row { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--paper2); }
+.ferm-recap-row:first-child { border-top: none; }
+.ferm-recap-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ferm-recap-dot.j1 { background: var(--dark); }
+.ferm-recap-dot.direct { background: var(--red); }
+.ferm-recap-name { font-size: 11px; font-weight: 600; color: var(--dark); flex: 1; }
+.ferm-badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.ferm-badge.j1 { background: var(--dark); color: var(--paper); }
+.ferm-badge.direct { background: var(--red-bg); color: var(--red); border: 1px solid var(--red); }
+.recap-section-ferm { margin: 13px 10px 0; }
+.recap-section-ferm-title { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+.recap-section-ferm-title.j1 { color: var(--dark); }
+.recap-section-ferm-title.direct { color: var(--red); }
+
 /* ── MODALES ET TOASTS ── */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(54, 40, 26, 0.6); z-index: 100; align-items: flex-end; justify-content: center; }
 .modal-overlay.open { display: flex; }
@@ -352,7 +407,6 @@ const db = getDatabase(fbApp);
 const syncDot = document.getElementById('sync-dot');
 function setSyncDot(s) { syncDot.className = 'sync-dot' + (s === 'ok' ? ' ok' : s === 'err' ? ' err' : ''); }
 
-// AVEC LE MOUCHARD DE CONSOLE
 async function fbSet(path, data) {
   try { 
     await set(ref(db, path), data); 
@@ -396,45 +450,50 @@ const DEFAULT_LEVAINS = {
 
 const DEFAULT_RECETTES = {
   'Campagne': {
-    perte: PERTE_CUISSON_DEFAUT, inclusions: [],
+    ordre: 1, perte: PERTE_CUISSON_DEFAUT, inclusions: [],
     ingredients: [{ ing: 'Farine de blé T80', ratio: 1.0 }, { ing: 'Eau', ratio: 0.72 }, { ing: 'Sel', ratio: 0.015 }, { ing: 'Levain dur T65', ratio: 0.2 }]
   },
+  'Brioche': {
+    ordre: 2, perte: PERTE_CUISSON_DEFAUT, inclusions: [],
+    ingredients: [{ ing: 'Farine T45', ratio: 1.0 }, { ing: 'Œufs', ratio: 0.60 }, { ing: 'Beurre', ratio: 0.50 }, { ing: 'Sucre', ratio: 0.15 }, { ing: 'Levure fraîche', ratio: 0.04 }, { ing: 'Sel', ratio: 0.02 }]
+  },
   'Graines': {
-    parent: 'Campagne', perte: PERTE_CUISSON_DEFAUT,
+    parent: 'Campagne', ordre: 3, perte: PERTE_CUISSON_DEFAUT,
     inclusions: [{ ing: 'Mélange graines', ratio: 0.13 }], ingredients: []
   },
   'Noix': {
-    parent: 'Campagne', perte: PERTE_CUISSON_DEFAUT,
+    parent: 'Campagne', ordre: 4, perte: PERTE_CUISSON_DEFAUT,
     inclusions: [{ ing: 'Noix', ratio: 0.09 }], ingredients: []
   },
   'Figues': {
-    parent: 'Campagne', perte: PERTE_CUISSON_DEFAUT,
+    parent: 'Campagne', ordre: 5, perte: PERTE_CUISSON_DEFAUT,
     inclusions: [{ ing: 'Figues', ratio: 0.09 }], ingredients: []
   },
   'Classique': {
-    perte: PERTE_CUISSON_DEFAUT, inclusions: [],
+    ordre: 6, perte: PERTE_CUISSON_DEFAUT, inclusions: [],
     ingredients: [{ ing: 'Farine de blé T65', ratio: 1.0 }, { ing: 'Eau', ratio: 0.72 }, { ing: 'Sel', ratio: 0.015 }, { ing: 'Levain dur T65', ratio: 0.2 }]
   },
   'Pain de mie': {
-    perte: PERTE_CUISSON_DEFAUT, inclusions: [],
+    ordre: 7, perte: PERTE_CUISSON_DEFAUT, inclusions: [],
     ingredients: [{ ing: 'Farine de blé T65', ratio: 1.0 }, { ing: 'Eau', ratio: 0.3 }, { ing: 'Lait', ratio: 0.3 }, { ing: 'Sel', ratio: 0.02 }, { ing: 'Beurre', ratio: 0.09 }, { ing: 'Levure', ratio: 0.03 }, { ing: 'Levain dur T65', ratio: 0.2 }]
   },
   'Petit épeautre': {
-    perte: PERTE_CUISSON_DEFAUT, inclusions: [],
+    ordre: 8, perte: PERTE_CUISSON_DEFAUT, inclusions: [],
     ingredients: [{ ing: 'Farine P.E. T80', ratio: 1.0 }, { ing: 'Eau', ratio: 0.8 }, { ing: 'Sel', ratio: 0.015 }, { ing: 'Levain de petit épeautre', ratio: 0.2 }]
   },
   'Méteil': {
-    perte: PERTE_CUISSON_DEFAUT, inclusions: [],
+    ordre: 9, perte: PERTE_CUISSON_DEFAUT, inclusions: [],
     ingredients: [{ ing: 'Farine T80', ratio: 0.5 }, { ing: 'Farine Seigle T130', ratio: 0.5 }, { ing: 'Eau', ratio: 0.8 }, { ing: 'Sel', ratio: 0.015 }, { ing: 'Levain dur T65', ratio: 0.2 }]
   },
   'Intégral': {
-    perte: PERTE_CUISSON_DEFAUT, inclusions: [],
+    ordre: 10, perte: PERTE_CUISSON_DEFAUT, inclusions: [],
     ingredients: [{ ing: 'Farine T130', ratio: 0.9 }, { ing: 'Son de blé', ratio: 0.1 }, { ing: 'Eau', ratio: 0.8 }, { ing: 'Sel', ratio: 0.015 }, { ing: 'Levain dur T65', ratio: 0.2 }]
   }
 };
 
 const DEFAULT_FORMATS = {
   'Campagne':       [{ nom: '500g', poidsCuit: 0.500 }, { nom: 'Kilo', poidsCuit: 1.000 }],
+  'Brioche':        [{ nom: '400g', poidsCuit: 0.400 }, { nom: 'Individuelle', poidsCuit: 0.080 }],
   'Graines':        [{ nom: '500g', poidsCuit: 0.500 }, { nom: 'Kilo', poidsCuit: 1.000 }],
   'Noix':           [{ nom: '500g', poidsCuit: 0.500 }, { nom: 'Kilo', poidsCuit: 1.000 }],
   'Figues':         [{ nom: '500g', poidsCuit: 0.500 }, { nom: 'Kilo', poidsCuit: 1.000 }],
@@ -454,6 +513,8 @@ let selectedRecettes = new Set();
 let orderedRecettes = [];
 let currentStep = 0;
 let qty = {};
+let fermentation = {};         // {rec: 'j1'|'direct'}
+let levainRatioOverride = {};  // {rec: {levainNom: ratio_g_per_kg}}
 
 // ── 4. FONCTIONS UTILITAIRES ──
 function poidsCru(rec, fmt) { 
@@ -461,8 +522,18 @@ function poidsCru(rec, fmt) {
   return fmt.poidsCuit / (1 - perte); 
 }
 function getParent(rec) { return (RECETTES[rec] || {}).parent || null; }
-function getParentes() { return Object.keys(RECETTES).filter(r => !getParent(r)); }
-function getDeclinaisons(parent) { return Object.keys(RECETTES).filter(r => getParent(r) === parent); }
+
+function getParentes() { 
+  return Object.keys(RECETTES)
+    .filter(r => !getParent(r))
+    .sort((a, b) => (RECETTES[a].ordre || 99) - (RECETTES[b].ordre || 99)); 
+}
+function getDeclinaisons(parent) { 
+  return Object.keys(RECETTES)
+    .filter(r => getParent(r) === parent)
+    .sort((a, b) => (RECETTES[a].ordre || 99) - (RECETTES[b].ordre || 99)); 
+}
+
 function getFamille(parent) { return [parent, ...getDeclinaisons(parent)]; }
 function getParentesAvecDecli() { return getParentes().filter(r => getDeclinaisons(r).length > 0); }
 function getAutresSimples() { return getParentes().filter(r => getDeclinaisons(r).length === 0); }
@@ -482,7 +553,6 @@ function mergeQty(data) {
   Object.keys(data || {}).forEach(rec => {
     if (!qty[rec]) return;
     Object.keys(data[rec] || {}).forEach(fmt => {
-      // Reconvertit les tirets en points pour le chargement
       let targetFmt = fmt;
       if (!qty[rec][fmt] && fmt.includes('-') && qty[rec][fmt.replace(/-/g, '.')]) {
         targetFmt = fmt.replace(/-/g, '.');
@@ -500,7 +570,6 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-// ── FONCTION GLOBALE DE SAUVEGARDE BROUILLON ──
 function saveSessionQty() {
   const safeQty = {};
   Object.keys(qty).forEach(rec => {
@@ -514,6 +583,8 @@ function saveSessionQty() {
     });
   });
   fbSet('session/qty', safeQty).catch(() => {});
+  fbSet('session/fermentation', fermentation).catch(() => {});
+  fbSet('session/levainOverride', levainRatioOverride).catch(() => {});
 }
 
 // ── 5. INITIALISATION ──
@@ -528,6 +599,10 @@ async function init() {
     initQty();
     const lastQty = await fbGet('session/qty');
     if (lastQty) mergeQty(lastQty);
+    const lastFerm = await fbGet('session/fermentation');
+    if (lastFerm) fermentation = lastFerm;
+    const lastLev = await fbGet('session/levainOverride');
+    if (lastLev) levainRatioOverride = lastLev;
   } catch(e) {
     initQty();
   }
@@ -659,28 +734,114 @@ function renderFormats(rec) {
   ct.innerHTML = '';
   if (!FORMATS[rec]) return;
   const def = RECETTES[rec] || {};
+
+  if (!fermentation[rec] && def.parent && fermentation[def.parent]) {
+    fermentation[rec] = fermentation[def.parent];
+  }
+
+  const fermVal = fermentation[rec] || 'j1';
+  const fermDiv = document.createElement('div');
+  fermDiv.className = 'ferm-section';
+  fermDiv.innerHTML = `
+    <div class="ferm-section-lbl">Fermentation</div>
+    <div class="ferm-toggle">
+      <div class="ferm-btn ${fermVal === 'j1' ? 'ferm-j1' : ''}" data-ferm-rec="${rec}" data-ferm-val="j1">
+        <div class="ferm-icon">🌙</div>
+        <div class="ferm-name">J+1</div>
+        <div class="ferm-desc">Pétrir ce soir</div>
+      </div>
+      <div class="ferm-btn ${fermVal === 'direct' ? 'ferm-direct' : ''}" data-ferm-rec="${rec}" data-ferm-val="direct">
+        <div class="ferm-icon">☀️</div>
+        <div class="ferm-name">Direct</div>
+        <div class="ferm-desc">Pétrir demain matin</div>
+      </div>
+    </div>`;
   
+  fermDiv.querySelectorAll('.ferm-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const selectedVal = btn.dataset.fermVal;
+      fermentation[btn.dataset.fermRec] = selectedVal;
+      
+      getDeclinaisons(btn.dataset.fermRec).forEach(child => {
+        fermentation[child] = selectedVal;
+      });
+      
+      renderFormats(rec);
+      saveSessionQty();
+    });
+  });
+  ct.appendChild(fermDiv);
+
+  const srcIngs = def.parent ? ((RECETTES[def.parent] || {}).ingredients || []) : (def.ingredients || []);
+  const levainIngs = srcIngs.filter(i => LEVAINS[i.ing]);
+  if (levainIngs.length) {
+    if (!levainRatioOverride[rec]) levainRatioOverride[rec] = {};
+    const wrapDiv = document.createElement('div');
+    wrapDiv.innerHTML = '<div class="ferm-section-lbl" style="margin:0 10px 6px">Ajuster le levain</div>';
+    const block = document.createElement('div');
+    block.className = 'levain-override-block';
+    levainIngs.forEach(item => {
+      const baseRatio = Math.round(item.ratio * 1000);
+      if (levainRatioOverride[rec][item.ing] === undefined) levainRatioOverride[rec][item.ing] = baseRatio;
+      const cur = levainRatioOverride[rec][item.ing];
+      const row = document.createElement('div');
+      row.className = 'levain-override-row';
+      row.innerHTML = `<div class="levain-override-name">${item.ing}</div><input class="levain-override-input" type="number" step="5" min="0" value="${cur}" data-lev-rec="${rec}" data-lev-ing="${item.ing}"><span class="levain-override-unit">g/kg farine</span>`;
+      block.appendChild(row);
+    });
+    const hint = document.createElement('div');
+    hint.className = 'levain-override-hint';
+    hint.textContent = 'Base : ' + levainIngs.map(i => Math.round(i.ratio * 1000) + ' g/kg').join(', ') + ' · modification pour cette fournée uniquement';
+    block.appendChild(hint);
+    block.querySelectorAll('.levain-override-input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        if (!levainRatioOverride[inp.dataset.levRec]) levainRatioOverride[inp.dataset.levRec] = {};
+        levainRatioOverride[inp.dataset.levRec][inp.dataset.levIng] = parseFloat(inp.value) || 0;
+        saveSessionQty();
+      });
+    });
+    wrapDiv.appendChild(block);
+    ct.appendChild(wrapDiv);
+  }
+
   if (def.inclusions && def.inclusions.length) {
     const n = document.createElement('div'); n.className = 'famille-note';
     n.innerHTML = '<strong>Inclusion :</strong> ' + def.inclusions.map(i => `${i.ing} (${Math.round(i.ratio * 100)}%)`).join(', ');
     ct.appendChild(n);
   }
-  
+
+  const qtyLbl = document.createElement('div');
+  qtyLbl.className = 'ferm-section-lbl';
+  qtyLbl.style.cssText = 'margin: 0 10px 8px';
+  qtyLbl.textContent = 'Quantités';
+  ct.appendChild(qtyLbl);
+
   FORMATS[rec].forEach(fmt => {
     const pc = poidsCru(rec, fmt);
     if (!qty[rec]) qty[rec] = {};
     if (!qty[rec][fmt.nom]) { qty[rec][fmt.nom] = {}; CANAUX.forEach(c => qty[rec][fmt.nom][c] = 0); }
-    
     let blockHTML = `<div class="format-block"><div class="format-block-title"><span>${fmt.nom}</span><span class="format-poids">${(pc * 1000).toFixed(0)}g cru → ${(fmt.poidsCuit * 1000).toFixed(0)}g cuit</span></div>`;
-    
     CANAUX.forEach(canal => {
       const val = qty[rec][fmt.nom][canal] || 0;
-      blockHTML += `<div class="canal-row"><div class="canal-label">${canal}</div><div class="canal-input-wrap"><button class="qty-btn" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}" data-delta="-1">−</button><input class="qty-input" type="number" inputmode="numeric" min="0" value="${val || ''}" placeholder="0" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}"><button class="qty-btn" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}" data-delta="1">+</button><div class="canal-subtotal" id="sub-${rec}-${fmt.nom}-${canal}">${val ? (val * pc).toFixed(2) + ' kg' : ''}</div></div></div>`;
+      blockHTML += `<div class="canal-row"><div class="canal-label">${canal}</div><div class="canal-input-wrap"><button class="qty-btn" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}" data-delta="-1">−</button><input class="qty-input" type="number" inputmode="numeric" enterkeyhint="next" min="0" value="${val || ''}" placeholder="0" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}"><button class="qty-btn" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}" data-delta="1">+</button><div class="canal-subtotal" id="sub-${rec}-${fmt.nom}-${canal}">${val ? (val * pc).toFixed(2) + ' kg' : ''}</div></div></div>`;
     });
-    blockHTML += `</div>`;
+    blockHTML += '</div>';
     ct.innerHTML += blockHTML;
   });
 }
+
+document.getElementById('saisie-formats').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.classList.contains('qty-input')) {
+    e.preventDefault(); 
+    const inputs = Array.from(document.querySelectorAll('.qty-input'));
+    const index = inputs.indexOf(e.target);
+    if (index > -1 && index < inputs.length - 1) {
+      inputs[index + 1].focus(); 
+    } else {
+      e.target.blur(); 
+    }
+  }
+});
 
 document.getElementById('saisie-formats').addEventListener('click', (e) => {
   if (e.target.classList.contains('qty-btn')) {
@@ -729,19 +890,41 @@ function getTotalPains(rec) { let n = 0; (FORMATS[rec] || []).forEach(fmt => { C
 
 function calcAllIng() {
   const r = {}; const add = (i, v) => { r[i] = (r[i] || 0) + v; };
+
+  function getRatioIng(rec, item) {
+    if (LEVAINS[item.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][item.ing] !== undefined) {
+      return levainRatioOverride[rec][item.ing] / 1000;
+    }
+    return item.ratio;
+  }
+
   getParentesAvecDecli().forEach(parent => {
     const membres = getFamille(parent).filter(x => selectedRecettes.has(x));
     if (!membres.length) return;
     const pt = membres.reduce((s, x) => s + getPoidsRec(x), 0);
-    const bi = RECETTES[parent].ingredients; const dn = bi.reduce((s, i) => s + i.ratio, 0);
-    bi.forEach(i => add(i.ing, (i.ratio / dn) * pt));
+    const bi = RECETTES[parent].ingredients;
+    const refRec = selectedRecettes.has(parent) ? parent : membres[0];
+    const dn = bi.reduce((s, i) => s + getRatioIng(refRec, i), 0);
+    bi.forEach(i => add(i.ing, (getRatioIng(refRec, i) / dn) * pt));
     membres.forEach(rec => { const p = getPoidsRec(rec); (RECETTES[rec].inclusions || []).forEach(inc => add(inc.ing, (p / (1 + inc.ratio)) * inc.ratio)); });
   });
+
   getAutresSimples().filter(x => selectedRecettes.has(x)).forEach(rec => {
     const p = getPoidsRec(rec); if (!p) return;
-    const ings = RECETTES[rec].ingredients; const dn = ings.reduce((s, i) => s + i.ratio, 0);
-    ings.forEach(i => add(i.ing, (i.ratio / dn) * p));
+    const ings = RECETTES[rec].ingredients;
+    const dn = ings.reduce((s, i) => s + getRatioIng(rec, i), 0);
+    ings.forEach(i => add(i.ing, (getRatioIng(rec, i) / dn) * p));
   });
+
+  getParentesAvecDecli().forEach(parent => {
+    if (!selectedRecettes.has(parent)) return;
+    if (getDeclinaisons(parent).some(r => selectedRecettes.has(r))) return;
+    const p = getPoidsRec(parent); if (!p) return;
+    const ings = RECETTES[parent].ingredients;
+    const dn = ings.reduce((s, i) => s + getRatioIng(parent, i), 0);
+    ings.forEach(i => add(i.ing, (getRatioIng(parent, i) / dn) * p));
+  });
+
   return r;
 }
 
@@ -760,46 +943,93 @@ function renderResume() {
   let tp = 0, tk = 0;
   orderedRecettes.forEach(r => { tp += getTotalPains(r); tk += getPoidsRec(r); });
   document.getElementById('big-stats').innerHTML = `<div class="big-stat"><div class="big-stat-val">${tp}</div><div class="big-stat-lbl">Total pains</div></div><div class="big-stat"><div class="big-stat-val">${tk.toFixed(1)}</div><div class="big-stat-lbl">kg pâte crue</div></div>`;
-  
+
   const rd = document.getElementById('recap-recettes'); rd.innerHTML = '';
   orderedRecettes.forEach(rec => {
     const p = getTotalPains(rec), kg = getPoidsRec(rec);
     const det = CANAUX.map(c => { const n = (FORMATS[rec] || []).reduce((s, f) => s + (qty[rec] && qty[rec][f.nom] ? qty[rec][f.nom][c] || 0 : 0), 0); return n > 0 ? c + ': ' + n : null; }).filter(Boolean).join(' · ');
     const si = orderedRecettes.indexOf(rec);
+    const fv = fermentation[rec] || 'j1';
     const card = document.createElement('div'); card.className = 'recap-recette-card';
-    card.innerHTML = `<div><div class="recap-recette-name">${rec}</div><div class="recap-recette-detail">${det || '—'}</div><div class="edit-hint">✎ Modifier</div></div><div class="recap-recette-vals"><div class="recap-recette-pains">${p}</div><div class="recap-recette-kg">${kg.toFixed(2)} kg cru</div></div>`;
+    card.innerHTML = `<div><div class="recap-recette-name">${rec}</div><div class="recap-recette-detail">${det || '—'}</div><div class="edit-hint">✎ Modifier</div></div><div class="recap-recette-vals"><div class="recap-recette-pains">${p}</div><div class="recap-recette-kg">${kg.toFixed(2)} kg cru</div><div style="margin-top:4px"><span class="ferm-badge ${fv}">${fv === 'j1' ? '🌙 J+1' : '☀️ Direct'}</span></div></div>`;
     card.addEventListener('click', () => { currentStep = si; renderStep(); goTo('screen-saisie'); });
     rd.appendChild(card);
   });
-  
+
   const pd = document.getElementById('recap-pesees'); pd.innerHTML = '';
-  getParentesAvecDecli().forEach(parent => {
-    const membres = getFamille(parent).filter(r => selectedRecettes.has(r)); if (!membres.length) return;
-    const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
-    const bi = RECETTES[parent].ingredients; const dn = bi.reduce((s, i) => s + i.ratio, 0);
-    let h = `<div class="pesee-card"><div class="pesee-card-title"><span>Cuve ${parent}</span><span class="pesee-total">${pt.toFixed(3)} kg</span></div>`;
-    bi.forEach(i => { h += `<div class="ing-row"><div class="ing-name">${i.ing}</div><div class="ing-qty">${((i.ratio / dn) * pt).toFixed(3)} <span class="ing-unit">kg</span></div></div>`; }); h += '</div>'; pd.innerHTML += h;
-    membres.forEach(rec => {
-      const p = getPoidsRec(rec); const incl = RECETTES[rec].inclusions || [];
-      if (incl.length) {
-        let h2 = `<div class="pesee-card"><div class="pesee-card-title"><span>${rec}</span><span class="pesee-total">${p.toFixed(3)} kg pâte</span></div><div class="ing-row"><div class="ing-name" style="color:var(--tan-dark)">Part prélevée</div><div class="ing-qty">${p.toFixed(3)} <span class="ing-unit">kg</span></div></div>`;
-        incl.forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; h2 += `<div class="ing-row"><div class="ing-name">+ ${inc.ing}</div><div class="ing-qty">${q.toFixed(3)} <span class="ing-unit">kg</span></div></div>`; });
-        h2 += '</div>'; pd.innerHTML += h2;
+
+  function buildPesees(recsJ1, recsDirect) {
+    if (recsJ1.length) {
+      pd.innerHTML += `<div class="recap-section-ferm"><div class="recap-section-ferm-title j1">🌙 Ce soir — J+1</div></div>`;
+      buildPeseeBlocs(recsJ1, 'j1');
+    }
+    if (recsDirect.length) {
+      pd.innerHTML += `<div class="recap-section-ferm"><div class="recap-section-ferm-title direct">☀️ Demain matin — Direct</div></div>`;
+      buildPeseeBlocs(recsDirect, 'direct');
+    }
+  }
+
+  function buildPeseeBlocs(recsList, ftype) {
+    const cuvesFaites = new Set();
+    getParentesAvecDecli().forEach(parent => {
+      const membres = getFamille(parent).filter(r => recsList.includes(r));
+      if (!membres.length) return;
+      cuvesFaites.add(parent);
+      const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
+      const bi = RECETTES[parent].ingredients;
+      const refRec = membres.includes(parent) ? parent : membres[0];
+      const dn = bi.reduce((s, i) => s + i.ratio, 0);
+      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}"><div class="ferm-bloc-title">Cuve ${parent}</div><div class="ferm-bloc-sub">${pt.toFixed(3)} kg pâte totale</div></div><div class="ferm-bloc-steps">`;
+      h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${membres.map(r => `<span class="ferm-tag">${r}</span>`).join('')} · ${pt.toFixed(3)} kg</div></div></div>`;
+      bi.forEach(i => { h += `<div class="ing-row" style="padding-left:44px"><div class="ing-name">${i.ing}</div><div class="ing-qty">${((i.ratio / dn) * pt).toFixed(3)} <span class="ing-unit">kg</span></div></div>`; });
+      membres.forEach(rec => {
+        const p = getPoidsRec(rec); const incl = RECETTES[rec].inclusions || [];
+        if (incl.length) {
+          h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">↳</div><div><div class="ferm-step-main">Part ${rec} — ${p.toFixed(3)} kg</div>`;
+          incl.forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; h += `<div class="ferm-step-detail">+ ${inc.ing} : ${q.toFixed(3)} kg</div>`; });
+          h += `</div></div>`;
+        }
+      });
+      if (ftype === 'j1') {
+        h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">2</div><div><div class="ferm-step-main">Mise en bac · frigo</div><div class="ferm-step-detail">Pointage au froid jusqu'au lendemain</div></div></div>`;
+        h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">3</div><div><div class="ferm-step-main">Demain : diviser · façonner · cuire</div><div class="ferm-step-detail">Apprêt à TA selon texture</div></div></div>`;
+      } else {
+        h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">2</div><div><div class="ferm-step-main">Demain matin : pétrir · pointer à TA</div><div class="ferm-step-detail">Division → façonnage → apprêt → cuisson</div></div></div>`;
       }
+      h += `</div></div>`; pd.innerHTML += h;
     });
-  });
-  
-  const indep = [...getAutresSimples().filter(r => selectedRecettes.has(r)), ...getParentesAvecDecli().filter(p => selectedRecettes.has(p) && !getDeclinaisons(p).some(r => selectedRecettes.has(r)))];
-  indep.forEach(rec => {
-    const p = getPoidsRec(rec); if (!p) return;
-    const ings = RECETTES[rec].ingredients; const dn = ings.reduce((s, i) => s + i.ratio, 0);
-    let h = `<div class="pesee-card"><div class="pesee-card-title"><span>${rec}</span><span class="pesee-total">${p.toFixed(3)} kg</span></div>`;
-    ings.forEach(i => { h += `<div class="ing-row"><div class="ing-name">${i.ing}</div><div class="ing-qty">${((i.ratio / dn) * p).toFixed(3)} <span class="ing-unit">kg</span></div></div>`; }); h += '</div>'; pd.innerHTML += h;
-  });
-  
+
+    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+      const p = getPoidsRec(rec); if (!p) return;
+      const ings = RECETTES[rec].ingredients || (RECETTES[getParent(rec)] || {}).ingredients || [];
+      const dn = ings.reduce((s, i) => s + i.ratio, 0);
+      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}"><div class="ferm-bloc-title">${rec}</div><div class="ferm-bloc-sub">${p.toFixed(3)} kg pâte</div></div><div class="ferm-bloc-steps">`;
+      h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${p.toFixed(3)} kg</div></div></div>`;
+      ings.forEach(i => { h += `<div class="ing-row" style="padding-left:44px"><div class="ing-name">${i.ing}</div><div class="ing-qty">${((i.ratio / dn) * p).toFixed(3)} <span class="ing-unit">kg</span></div></div>`; });
+      if (ftype === 'j1') {
+        h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">2</div><div><div class="ferm-step-main">Mise en bac · frigo</div><div class="ferm-step-detail">Pointage au froid jusqu'au lendemain</div></div></div>`;
+      } else {
+        h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">2</div><div><div class="ferm-step-main">Demain matin : pétrir · pointer à TA</div><div class="ferm-step-detail">Division → façonnage → apprêt → cuisson</div></div></div>`;
+      }
+      h += `</div></div>`; pd.innerHTML += h;
+    });
+  }
+
+  const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
+  const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
+  buildPesees(recsJ1, recsDirect);
+
+  if (recsJ1.length && recsDirect.length) {
+    let recap = '<div class="ferm-recap-bar">';
+    recsJ1.forEach(r => { recap += `<div class="ferm-recap-row"><div class="ferm-recap-dot j1"></div><div class="ferm-recap-name">${r}</div><div class="ferm-badge j1">J+1</div></div>`; });
+    recsDirect.forEach(r => { recap += `<div class="ferm-recap-row"><div class="ferm-recap-dot direct"></div><div class="ferm-recap-name">${r}</div><div class="ferm-badge direct">Direct</div></div>`; });
+    recap += '</div>';
+    pd.innerHTML += recap;
+  }
+
   const allIng = calcAllIng(); const levains = calcLevains(allIng);
   const ld = document.getElementById('recap-levains'); ld.innerHTML = '';
-  if (!Object.keys(levains).length) { ld.innerHTML = '<div style="color:var(--tan-dark);font-size:13px;padding:4px 0;margin:0 10px">Aucun levain requis.</div>'; } 
+  if (!Object.keys(levains).length) { ld.innerHTML = '<div style="color:var(--tan-dark);font-size:13px;padding:4px 0;margin:0 10px">Aucun levain requis.</div>'; }
   else {
     Object.entries(levains).forEach(([lev, data]) => {
       let h = `<div class="levain-card"><div class="levain-card-title"><span>${lev}</span><span class="levain-total">${data.total.toFixed(3)} kg</span></div>`;
@@ -880,9 +1110,10 @@ function buildRecCard(rec) {
   const rk = rec.replace(/[^a-zA-Z0-9]/g, '_');
   const parentes = getParentes().filter(p => p !== rec);
   
-  let bHTML = `<div class="editor-section-title">Perte à la cuisson</div><div class="field-row"><span class="field-label">Perte moyenne</span><input class="field-input" type="number" step="1" min="0" max="50" value="${Math.round((def.perte || PERTE_CUISSON_DEFAUT) * 100)}" data-perte="${rec}"><span class="field-unit">%</span></div><div class="apercu-box" id="apercu-${rk}">${buildApercu(rec, fmts, def.perte || PERTE_CUISSON_DEFAUT)}</div>`;
+  let bHTML = `<div class="editor-section-title">Paramètres généraux</div>`;
+  bHTML += `<div class="field-row"><span class="field-label">Perte moyenne cuisson</span><input class="field-input" type="number" step="1" min="0" max="50" value="${Math.round((def.perte || PERTE_CUISSON_DEFAUT) * 100)}" data-perte="${rec}"><span class="field-unit">%</span></div>`;
+  bHTML += `<div class="apercu-box" id="apercu-${rk}">${buildApercu(rec, fmts, def.perte || PERTE_CUISSON_DEFAUT)}</div>`;
   
-  // Correction Grand-parents
   if (declinaisons.length === 0) {
     bHTML += `<div class="editor-section-title">Famille (cuve)</div><div class="field-row"><span class="field-label">Rattacher à</span><select class="field-input wide" data-parent-sel="${rec}"><option value="">— Pétrie indépendante —</option>${parentes.map(p => `<option value="${p}"${def.parent === p ? ' selected' : ''}>${p}</option>`).join('')}</select></div>`;
   } else {
@@ -903,11 +1134,22 @@ function buildRecCard(rec) {
   (def.inclusions || []).forEach((inc, idx) => { bHTML += `<div class="ing-edit-row"><input class="field-input wide" type="text" value="${inc.ing}" data-incl-rec="${rec}" data-incl-idx="${idx}" data-incl-field="ing"><input class="field-input" type="number" step="0.001" value="${inc.ratio}" data-incl-rec="${rec}" data-incl-idx="${idx}" data-incl-field="ratio"><span class="field-unit">ratio</span><button class="btn-del" data-del-incl-rec="${rec}" data-del-incl-idx="${idx}">✕</button></div>`; });
   if (estDecli) bHTML += `<button class="btn-add" data-add-incl="${rec}">+ Ajouter inclusion</button>`;
   
+  // NOUVEAU : Option d'affichage déplacée tout en bas
+  bHTML += `<div class="editor-section-title">Ordre et Affichage</div>`;
+  bHTML += `<div class="field-row"><span class="field-label">Position dans la liste (1 = premier)</span><input class="field-input" type="number" step="1" value="${def.ordre || 99}" data-ordre="${rec}"></div>`;
+
   if (!estDecli) bHTML += `<button class="btn-new-decli" data-new-decli="${rec}">+ Créer une déclinaison de ${rec}</button>`;
   bHTML += `<button class="btn-danger-full" data-del-rec="${rec}">Supprimer${estDecli ? ' cette déclinaison' : ' cette recette'}</button>`;
   body.innerHTML = bHTML;
   
   header.addEventListener('click', () => { body.classList.toggle('open'); header.querySelector('.editor-chevron').textContent = body.classList.contains('open') ? '▴' : '▾'; });
+  
+  body.querySelectorAll('[data-ordre]').forEach(inp => { 
+    inp.addEventListener('input', () => { 
+      RECETTES[inp.dataset.ordre].ordre = parseInt(inp.value) || 99; 
+      renderSelection(); 
+    }); 
+  });
   
   body.querySelectorAll('[data-perte]').forEach(inp => { inp.addEventListener('input', () => { const r = inp.dataset.perte; const p2 = Math.min(Math.max(parseFloat(inp.value) || 0, 0), 99) / 100; RECETTES[r].perte = p2; const ap = document.getElementById('apercu-' + r.replace(/[^a-zA-Z0-9]/g, '_')); if (ap) ap.innerHTML = buildApercu(r, FORMATS[r] || [], p2); }); });
   body.querySelectorAll('[data-parent-sel]').forEach(sel => { sel.addEventListener('change', () => { const r = sel.dataset.parentSel; const v = sel.value || null; if (v) RECETTES[r].parent = v; else delete RECETTES[r].parent; renderSelection(); }); });
@@ -922,7 +1164,6 @@ function buildRecCard(rec) {
   body.querySelectorAll('[data-add-incl]').forEach(btn => { btn.addEventListener('click', () => { const r = btn.dataset.addIncl; if (!RECETTES[r].inclusions) RECETTES[r].inclusions = []; RECETTES[r].inclusions.push({ ing: '', ratio: 0 }); renderEditor(r); }); });
   body.querySelectorAll('[data-new-decli]').forEach(btn => { btn.addEventListener('click', () => { const pRec = btn.dataset.newDecli; const nom = prompt(`Nom de la déclinaison de "${pRec}" :`); if (!nom || !nom.trim()) return; const n = nom.trim(); if (RECETTES[n]) { alert('Ce nom existe déjà.'); return; } RECETTES[n] = { parent: pRec, perte: RECETTES[pRec].perte || PERTE_CUISSON_DEFAUT, inclusions: [], ingredients: JSON.parse(JSON.stringify(RECETTES[pRec].ingredients)) }; FORMATS[n] = JSON.parse(JSON.stringify(FORMATS[pRec] || [])); renderEditor(n); renderSelection(); showToast(`"${n}" créée ✓`); }); });
   
-  // Nettoyage Fantômes
   body.querySelectorAll('[data-del-rec]').forEach(btn => { btn.addEventListener('click', () => { const r = btn.dataset.delRec; if (!confirm(`Supprimer "${r}" ?`)) return; getDeclinaisons(r).forEach(d => { delete RECETTES[d]; delete FORMATS[d]; selectedRecettes.delete(d); }); delete RECETTES[r]; delete FORMATS[r]; selectedRecettes.delete(r); renderEditor(); renderSelection(); }); });
   
   card.appendChild(header); card.appendChild(body); return card;
@@ -954,20 +1195,119 @@ function exportPDF() {
   h += `<h2>Pains</h2><table><tr><th>Recette</th><th>Format</th><th>Boutique</th><th>Marché</th><th>Commandes</th><th>Autres</th><th>Total</th><th>Pâte crue</th></tr>`;
   orderedRecettes.forEach(rec => { (FORMATS[rec] || []).forEach(fmt => { const pc = poidsCru(rec, fmt); const cols = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0); const tot = cols.reduce((a, b) => a + b, 0); if (tot > 0) h += `<tr><td>${rec}</td><td>${fmt.nom}</td>${cols.map(v => `<td>${v}</td>`).join('')}<td><strong>${tot}</strong></td><td>${(tot * pc).toFixed(3)} kg</td></tr>`; }); });
   h += `</table><h2>Pesées</h2>`;
-  getParentesAvecDecli().forEach(parent => { const membres = getFamille(parent).filter(r => selectedRecettes.has(r)); if (!membres.length) return; const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0); const bi = RECETTES[parent].ingredients; const dn = bi.reduce((s, i) => s + i.ratio, 0); h += `<h3>Cuve ${parent} — ${pt.toFixed(3)} kg</h3><table>`; bi.forEach(i => { h += `<tr><td>${i.ing}</td><td>${((i.ratio / dn) * pt).toFixed(3)} kg</td></tr>`; }); h += `</table>`; membres.forEach(rec => { const p = getPoidsRec(rec); h += `<h3>${rec} — ${p.toFixed(3)} kg pâte prélevée</h3>`; if ((RECETTES[rec].inclusions || []).length) { h += `<table>`; RECETTES[rec].inclusions.forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; h += `<tr><td>+ ${inc.ing}</td><td>${q.toFixed(3)} kg</td></tr>`; }); h += `</table>`; } }); });
-  const indep = [...getAutresSimples().filter(r => selectedRecettes.has(r)), ...getParentesAvecDecli().filter(p => selectedRecettes.has(p) && !getDeclinaisons(p).some(r => selectedRecettes.has(r)))];
-  indep.forEach(rec => { const p = getPoidsRec(rec); if (!p) return; const ings = RECETTES[rec].ingredients; const dn = ings.reduce((s, i) => s + i.ratio, 0); h += `<h3>${rec} — ${p.toFixed(3)} kg</h3><table>`; ings.forEach(i => { h += `<tr><td>${i.ing}</td><td>${((i.ratio / dn) * p).toFixed(3)} kg</td></tr>`; }); h += `</table>`; });
+  
+  function renderPeseePDF(recsList, ftype) {
+    const cuvesFaites = new Set();
+    getParentesAvecDecli().forEach(parent => {
+      const membres = getFamille(parent).filter(r => recsList.includes(r));
+      if (!membres.length) return;
+      cuvesFaites.add(parent);
+      const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
+      const bi = RECETTES[parent].ingredients;
+      const refRec = membres.includes(parent) ? parent : membres[0];
+      const dn = bi.reduce((s, i) => {
+          let ratio = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) ratio = levainRatioOverride[refRec][i.ing] / 1000;
+          return s + ratio;
+      }, 0);
+      h += `<h3>Cuve ${parent} — ${pt.toFixed(3)} kg</h3><table>`;
+      bi.forEach(i => {
+          let ratio = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) ratio = levainRatioOverride[refRec][i.ing] / 1000;
+          h += `<tr><td>${i.ing}</td><td>${((ratio / dn) * pt).toFixed(3)} kg</td></tr>`; 
+      });
+      h += `</table>`;
+      membres.forEach(rec => {
+        const p = getPoidsRec(rec);
+        if ((RECETTES[rec].inclusions || []).length) {
+          h += `<h3>↳ Part ${rec} — ${p.toFixed(3)} kg</h3><table>`;
+          RECETTES[rec].inclusions.forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; h += `<tr><td>+ ${inc.ing}</td><td>${q.toFixed(3)} kg</td></tr>`; });
+          h += `</table>`;
+        }
+      });
+    });
+    
+    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+      const p = getPoidsRec(rec); if (!p) return;
+      const ings = RECETTES[rec].ingredients || (RECETTES[getParent(rec)] || {}).ingredients || [];
+      const dn = ings.reduce((s, i) => {
+          let ratio = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) ratio = levainRatioOverride[rec][i.ing] / 1000;
+          return s + ratio;
+      }, 0);
+      h += `<h3>${rec} — ${p.toFixed(3)} kg</h3><table>`;
+      ings.forEach(i => {
+          let ratio = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) ratio = levainRatioOverride[rec][i.ing] / 1000;
+          h += `<tr><td>${i.ing}</td><td>${((ratio / dn) * p).toFixed(3)} kg</td></tr>`; 
+      });
+      h += `</table>`;
+    });
+  }
+
+  const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
+  const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
+  if (recsJ1.length) { h += `<h2 style="margin-top:24px">🌙 Ce soir — J+1</h2>`; renderPeseePDF(recsJ1, 'j1'); }
+  if (recsDirect.length) { h += `<h2 style="margin-top:24px">☀️ Demain matin — Direct</h2>`; renderPeseePDF(recsDirect, 'direct'); }
+
   if (Object.keys(levains).length) { h += `<h2>Levains</h2>`; Object.entries(levains).forEach(([lev, data]) => { h += `<h3>${lev} — ${data.total.toFixed(3)} kg</h3><table>`; data.compos.forEach(c => { h += `<tr><td>${c.ing}</td><td>${c.qty.toFixed(3)} kg</td></tr>`; }); h += `</table>`; }); }
   h += `</body></html>`; const w = window.open('', '_blank'); w.document.write(h); w.document.close(); w.focus(); setTimeout(() => w.print(), 400);
 }
 
 function exportCSV() {
-  const d = today(); let csv = 'FOURNÉE DU ' + new Date().toLocaleDateString('fr-FR') + '\n\nPAINS\nRecette,Format,Boutique,Marché,Commandes,Autres,Total,Poids pâte crue (kg)\n';
-  orderedRecettes.forEach(rec => { (FORMATS[rec] || []).forEach(fmt => { const pc = poidsCru(rec, fmt); const vals = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0); const tot = vals.reduce((a, b) => a + b, 0); csv += `${rec},${fmt.nom},${vals.join(',')},${tot},${(tot * pc).toFixed(3)}\n`; }); });
+  const d = today(); let csv = 'FOURNÉE DU ' + new Date().toLocaleDateString('fr-FR') + '\n\nPAINS\nRecette,Fermentation,Format,Boutique,Marché,Commandes,Autres,Total,Poids pâte crue (kg)\n';
+  orderedRecettes.forEach(rec => { (FORMATS[rec] || []).forEach(fmt => { const pc = poidsCru(rec, fmt); const vals = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0); const tot = vals.reduce((a, b) => a + b, 0); csv += `${rec},${fermentation[rec] || 'j1'},${fmt.nom},${vals.join(',')},${tot},${(tot * pc).toFixed(3)}\n`; }); });
   csv += '\nPESÉES\n';
-  getParentesAvecDecli().forEach(parent => { const membres = getFamille(parent).filter(r => selectedRecettes.has(r)); if (!membres.length) return; const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0); const bi = RECETTES[parent].ingredients; const dn = bi.reduce((s, i) => s + i.ratio, 0); csv += `Cuve ${parent},${pt.toFixed(3)} kg\n`; bi.forEach(i => { csv += `,${i.ing},${((i.ratio / dn) * pt).toFixed(3)}\n`; }); membres.forEach(rec => { const p = getPoidsRec(rec); csv += `${rec} (part prélevée),${p.toFixed(3)} kg\n`; (RECETTES[rec].inclusions || []).forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; csv += `,+ ${inc.ing},${q.toFixed(3)}\n`; }); }); });
-  const indep = [...getAutresSimples().filter(r => selectedRecettes.has(r)), ...getParentesAvecDecli().filter(p => selectedRecettes.has(p) && !getDeclinaisons(p).some(r => selectedRecettes.has(r)))];
-  indep.forEach(rec => { const p = getPoidsRec(rec); if (!p) return; const ings = RECETTES[rec].ingredients; const dn = ings.reduce((s, i) => s + i.ratio, 0); csv += `${rec},${p.toFixed(3)} kg\n`; ings.forEach(i => { csv += `,${i.ing},${((i.ratio / dn) * p).toFixed(3)}\n`; }); });
+  
+  function renderPeseeCSV(recsList, ftype) {
+    const cuvesFaites = new Set();
+    getParentesAvecDecli().forEach(parent => {
+      const membres = getFamille(parent).filter(r => recsList.includes(r));
+      if (!membres.length) return;
+      cuvesFaites.add(parent);
+      const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
+      const bi = RECETTES[parent].ingredients;
+      const refRec = membres.includes(parent) ? parent : membres[0];
+      const dn = bi.reduce((s, i) => {
+          let ratio = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) ratio = levainRatioOverride[refRec][i.ing] / 1000;
+          return s + ratio;
+      }, 0);
+      csv += `Cuve ${parent} [${ftype}],${pt.toFixed(3)} kg\n`;
+      bi.forEach(i => {
+          let ratio = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) ratio = levainRatioOverride[refRec][i.ing] / 1000;
+          csv += `,${i.ing},${((ratio / dn) * pt).toFixed(3)}\n`; 
+      });
+      membres.forEach(rec => {
+        const p = getPoidsRec(rec);
+        csv += `${rec} (part prélevée),${p.toFixed(3)} kg\n`;
+        (RECETTES[rec].inclusions || []).forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; csv += `,+ ${inc.ing},${q.toFixed(3)}\n`; });
+      });
+    });
+    
+    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+      const p = getPoidsRec(rec); if (!p) return;
+      const ings = RECETTES[rec].ingredients || (RECETTES[getParent(rec)] || {}).ingredients || [];
+      const dn = ings.reduce((s, i) => {
+          let ratio = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) ratio = levainRatioOverride[rec][i.ing] / 1000;
+          return s + ratio;
+      }, 0);
+      csv += `${rec} [${ftype}],${p.toFixed(3)} kg\n`;
+      ings.forEach(i => {
+          let ratio = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) ratio = levainRatioOverride[rec][i.ing] / 1000;
+          csv += `,${i.ing},${((ratio / dn) * p).toFixed(3)}\n`; 
+      });
+    });
+  }
+
+  const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
+  const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
+  if (recsJ1.length) { csv += `\n--- Ce soir (J+1) ---\n`; renderPeseeCSV(recsJ1, 'j1'); }
+  if (recsDirect.length) { csv += `\n--- Demain matin (Direct) ---\n`; renderPeseeCSV(recsDirect, 'direct'); }
+
   const allIng = calcAllIng(); const levains = calcLevains(allIng);
   if (Object.keys(levains).length) { csv += '\nLEVAINS\n'; Object.entries(levains).forEach(([lev, data]) => { csv += `${lev},${data.total.toFixed(3)} kg\n`; data.compos.forEach(c => { csv += `,${c.ing},${c.qty.toFixed(3)}\n`; }); }); }
   dl(csv, 'fournee_' + d + '.csv');
@@ -988,7 +1328,20 @@ function renderSavedList(data) {
     const el = document.createElement('div'); el.className = 'saved-item';
     el.innerHTML = `<div class="saved-item-name">${name}</div><div class="saved-item-del">✕</div>`;
     el.querySelector('.saved-item-del').addEventListener('click', e => { e.stopPropagation(); if (confirm(`Supprimer "${name}" ?`)) fbRemove('fournees/' + name); });
-    el.addEventListener('click', () => { const d = data[name]; selectedRecettes = new Set(d.selected || []); initQty(); if (d.qty) mergeQty(d.qty); updateSelUI(); document.getElementById('modal-save').classList.remove('open'); showToast(`"${name}" chargée ✓`); });
+    
+    el.addEventListener('click', () => { 
+      const d = data[name]; 
+      selectedRecettes = new Set(d.selected || []); 
+      initQty(); 
+      if (d.qty) mergeQty(d.qty); 
+      
+      fermentation = d.fermentation || {};
+      levainRatioOverride = d.levainOverride || {};
+      
+      updateSelUI(); 
+      document.getElementById('modal-save').classList.remove('open'); 
+      showToast(`"${name}" chargée ✓`); 
+    });
     list.appendChild(el);
   });
 }
@@ -1007,7 +1360,7 @@ document.getElementById('btn-rec-back').addEventListener('click', () => goTo('sc
 document.getElementById('btn-save-rec').addEventListener('click', async () => { showToast('Enregistrement…'); const ok = await fbSet('config', { recettes: RECETTES, formats: FORMATS, levains: LEVAINS }); if (ok) { initQty(); renderSelection(); showToast('Recettes enregistrées ✓'); } });
 
 document.getElementById('btn-new-lev').addEventListener('click', () => { const name = prompt('Nom du nouveau levain :'); if (!name || !name.trim()) return; const n = name.trim(); if (LEVAINS[n]) { alert('Ce levain existe déjà.'); return; } LEVAINS[n] = [{ ing: 'Farine', ratio: 1.0 }, { ing: 'Eau', ratio: 0.5 }, { ing: 'Souche', ratio: 0.15 }]; renderEditor(n); showToast(`Levain "${n}" créé ✓`); });
-document.getElementById('btn-new-rec').addEventListener('click', () => { const name = prompt('Nom de la nouvelle recette :'); if (!name || !name.trim()) return; const n = name.trim(); if (RECETTES[n]) { alert('Cette recette existe déjà.'); return; } RECETTES[n] = { perte: PERTE_CUISSON_DEFAUT, inclusions: [], ingredients: [{ ing: 'Farine', ratio: 1.0 }] }; FORMATS[n] = [{ nom: '500g', poidsCuit: 0.50 }]; renderEditor(n); showToast(`"${n}" créée`); });
+document.getElementById('btn-new-rec').addEventListener('click', () => { const name = prompt('Nom de la nouvelle recette :'); if (!name || !name.trim()) return; const n = name.trim(); if (RECETTES[n]) { alert('Cette recette existe déjà.'); return; } RECETTES[n] = { ordre: 99, perte: PERTE_CUISSON_DEFAUT, inclusions: [], ingredients: [{ ing: 'Farine', ratio: 1.0 }] }; FORMATS[n] = [{ nom: '500g', poidsCuit: 0.50 }]; renderEditor(n); showToast(`"${n}" créée`); });
 
 document.getElementById('btn-reset-sel').addEventListener('click', () => { selectedRecettes.clear(); updateSelUI(); });
 document.getElementById('btn-start').addEventListener('click', startSaisie);
@@ -1015,16 +1368,24 @@ document.getElementById('btn-prev').addEventListener('click', () => { if (curren
 document.getElementById('btn-go-sel').addEventListener('click', () => goTo('screen-selection'));
 document.getElementById('btn-next').addEventListener('click', () => { if (currentStep < orderedRecettes.length - 1) { currentStep++; renderStep(); } else { renderResume(); goTo('screen-resume'); } });
 
-// Les RAZ sauvegardent maintenant le brouillon vide
 document.getElementById('btn-raz').addEventListener('click', () => { const rec = orderedRecettes[currentStep]; if (!confirm(`Remettre à 0 les quantités pour ${rec} ?`)) return; if (qty[rec]) Object.keys(qty[rec]).forEach(fmt => { CANAUX.forEach(c => { qty[rec][fmt][c] = 0; }); }); saveSessionQty(); renderFormats(rec); updateLiveTotals(rec); });
 document.getElementById('btn-resume-sel').addEventListener('click', () => goTo('screen-selection'));
 document.getElementById('btn-resume-saisie').addEventListener('click', () => { goTo('screen-saisie'); renderStep(); });
-document.getElementById('btn-reset-all').addEventListener('click', () => { if (!confirm('Tout remettre à zéro ?')) return; initQty(); saveSessionQty(); selectedRecettes.clear(); updateSelUI(); goTo('screen-selection'); });
+
+document.getElementById('btn-reset-all').addEventListener('click', () => { 
+  if (!confirm('Tout remettre à zéro ?')) return; 
+  initQty(); 
+  fermentation = {}; 
+  levainRatioOverride = {}; 
+  saveSessionQty(); 
+  selectedRecettes.clear(); 
+  updateSelUI(); 
+  goTo('screen-selection'); 
+});
 
 document.getElementById('btn-open-modal').addEventListener('click', () => document.getElementById('modal-save').classList.add('open'));
 document.getElementById('modal-save').addEventListener('click', e => { if (e.target === document.getElementById('modal-save')) document.getElementById('modal-save').classList.remove('open'); });
 
-// Le gros bouton de sauvegarde final (blindé contre les caractères interdits et vides)
 document.getElementById('btn-save-fournee').addEventListener('click', async () => { 
   let name = document.getElementById('save-name-input').value.trim(); 
   if (!name) return; 
@@ -1051,7 +1412,9 @@ document.getElementById('btn-save-fournee').addEventListener('click', async () =
 
   const ok = await fbSet('fournees/' + name, { 
     selected: safeSelected, 
-    qty: safeQty 
+    qty: safeQty,
+    fermentation: fermentation,
+    levainOverride: levainRatioOverride
   }); 
   
   if (ok) { 
