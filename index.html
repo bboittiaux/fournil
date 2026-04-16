@@ -1406,8 +1406,7 @@ document.getElementById('exp-pdf').onclick = async () => {
 };
 
 document.getElementById('exp-csv').onclick = () => {
-  let csv = "Recette;Format;Canal;Quantité;Poids unitaire(g);Total(kg)
-";
+  let csv = "Recette;Format;Canal;Quantité;Poids unitaire(g);Total(kg)\n";
   Array.from(selectedRecettes).forEach(id => {
     const r = recettes.find(rec => rec.id === id);
     if (!qty[id]) return;
