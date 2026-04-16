@@ -270,6 +270,84 @@ html, body {
 .sync-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--tan); vertical-align: middle; }
 .sync-dot.ok { background: #5cb85c; }
 .sync-dot.err { background: var(--red); }
+
+/* ════════════════════════════════════════════
+   BACS DE POINTAGE — styles écran + cartes
+   ════════════════════════════════════════════ */
+.bac-rec-nav { display:flex; gap:6px; overflow-x:auto; padding:0 10px 4px; margin-bottom:10px; }
+.bac-rec-tab { padding:5px 11px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; cursor:pointer; border:2px solid var(--paper2); background:var(--white); color:var(--tan-dark); flex-shrink:0; }
+.bac-rec-tab.active { background:var(--dark); border-color:var(--dark); color:var(--paper); }
+.tab-dot { width:6px; height:6px; border-radius:50%; display:inline-block; margin-left:3px; vertical-align:middle; }
+.tab-dot.ok { background:#5cb85c; } .tab-dot.warn { background:var(--red); }
+
+.bacs-toggle-row { background:var(--white); border-radius:8px; border:1px solid var(--paper2); padding:9px 12px; margin:0 10px 10px; display:flex; align-items:center; gap:10px; }
+.toggle-sw { width:38px; height:21px; border-radius:11px; background:var(--tan); position:relative; cursor:pointer; flex-shrink:0; transition:background 0.15s; }
+.toggle-sw.on { background:var(--red); }
+.toggle-knob { width:15px; height:15px; border-radius:50%; background:white; position:absolute; top:3px; left:3px; transition:left 0.15s; }
+.toggle-sw.on .toggle-knob { left:20px; }
+
+.bacs-config { background:var(--white); border-radius:8px; border:1px solid var(--paper2); padding:8px 12px; margin:0 10px 10px; display:flex; align-items:center; gap:8px; }
+.bac-rec-header { display:flex; align-items:center; justify-content:space-between; padding:0 10px; margin-bottom:6px; }
+.bac-rec-title { font-family:'Amatic SC',cursive; font-size:24px; font-weight:700; color:var(--dark); }
+.bac-rec-info { font-size:10px; color:var(--tan-dark); font-weight:600; }
+.poids-override-wrap { display:flex; align-items:center; gap:4px; background:var(--red-bg); border:1px solid var(--tan); border-radius:6px; padding:4px 7px; }
+.poids-override-lbl { font-size:9px; color:var(--tan-dark); font-weight:600; }
+.poids-override-inp { width:34px; border:none; background:transparent; font-family:'Raleway',sans-serif; font-size:12px; font-weight:700; color:var(--red); text-align:right; outline:none; }
+
+.bac-restant { background:var(--white); border-radius:8px; border:1px solid var(--paper2); padding:7px 12px; margin:0 10px 8px; display:flex; align-items:center; justify-content:space-between; }
+.bac-restant-lbl { font-size:10px; color:var(--tan-dark); font-weight:600; }
+.bac-restant-val { font-family:'Amatic SC',cursive; font-size:18px; font-weight:700; }
+.bac-restant-val.ok { color:#5cb85c; } .bac-restant-val.warn { color:var(--red); }
+
+.bac-card { background:var(--white); border-radius:10px; overflow:hidden; margin:0 10px 8px; border:2px solid var(--paper2); }
+.bac-card.prio { border-color:var(--red); }
+.bac-card-header { padding:8px 10px; display:flex; align-items:center; gap:6px; }
+.bac-card.prio .bac-card-header { background:var(--red-bg); }
+.bac-order-btns { display:flex; flex-direction:column; gap:2px; flex-shrink:0; }
+.bac-order-btn { width:20px; height:17px; border:1px solid var(--tan); border-radius:4px; background:var(--paper2); font-size:8px; color:var(--dark); display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:700; }
+.bac-order-btn:active { background:var(--tan); }
+.bac-num { width:22px; height:22px; border-radius:50%; background:var(--dark); color:var(--paper); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.bac-card.prio .bac-num { background:var(--red); }
+.bac-label-wrap { flex:1; min-width:0; }
+.bac-label-input { width:100%; border:none; border-bottom:1.5px dashed var(--tan); background:transparent; font-family:'Raleway',sans-serif; font-size:12px; font-weight:700; color:var(--dark); outline:none; padding-bottom:1px; }
+.bac-label-input:focus { border-bottom-color:var(--red); }
+.bac-label-sub { font-size:9px; color:var(--tan-dark); margin-top:1px; }
+.bac-card.prio .bac-label-sub { color:var(--red); font-weight:700; }
+.bac-kg { font-family:'Amatic SC',cursive; font-size:18px; font-weight:700; color:var(--dark); flex-shrink:0; }
+.bac-kg.over { color:var(--red); }
+.bac-star { width:30px; height:30px; border-radius:8px; border:2px solid var(--paper2); background:var(--paper); display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; flex-shrink:0; color:var(--tan); }
+.bac-star:active { opacity:0.7; }
+.bac-card.prio .bac-star { color:var(--red); border-color:var(--red); background:white; }
+.bac-fmt-row { display:flex; align-items:center; padding:6px 10px; border-top:1px solid var(--paper2); gap:6px; }
+.bac-fmt-name { font-size:10px; font-weight:600; color:var(--dark); flex:1; }
+.bac-fmt-poids { font-size:9px; color:var(--tan-dark); }
+.bac-fmt-qty-wrap { display:flex; align-items:center; gap:4px; }
+.bac-fmt-btn { width:26px; height:26px; border-radius:50%; border:2px solid var(--paper2); background:var(--paper); font-size:13px; color:var(--red); display:flex; align-items:center; justify-content:center; font-weight:700; cursor:pointer; }
+.bac-fmt-btn:active { background:var(--tan); }
+.bac-fmt-qty { font-size:15px; font-weight:700; color:var(--dark); width:24px; text-align:center; }
+.bac-status { font-size:9px; font-weight:600; padding:3px 10px 7px; }
+.bac-status.ok { color:#5cb85c; } .bac-status.warn { color:var(--red); }
+.btn-add-bac { width:calc(100% - 20px); margin:0 10px; padding:10px; background:var(--paper2); border:2px dashed var(--tan-dark); border-radius:8px; font-family:'Raleway',sans-serif; font-size:11px; font-weight:700; color:var(--tan-dark); cursor:pointer; display:block; }
+
+/* ════════════════════════════════════════════
+   AJUSTEMENT % CUVE — styles inline résumé
+   ════════════════════════════════════════════ */
+.ajust-trigger { font-size:10px; color:var(--tan-dark); cursor:pointer; font-weight:600; margin-top:3px; display:inline-block; }
+.ajust-trigger:hover { color:var(--red); }
+.ajust-trigger.active { color:var(--red); }
+.ajusteur-panel { border-top:1px solid var(--paper2); padding:9px 12px; background:var(--red-bg); display:flex; align-items:center; gap:10px; }
+.ajusteur-panel.hidden { display:none; }
+.ajusteur-label { font-size:11px; font-weight:600; color:var(--dark); flex:1; }
+.ajusteur-label small { display:block; font-size:9px; color:var(--tan-dark); margin-top:1px; }
+.pct-control { display:flex; align-items:center; gap:4px; }
+.pct-arrow { width:26px; height:26px; border-radius:6px; border:1.5px solid var(--tan); background:white; font-size:14px; color:var(--red); display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:700; user-select:none; }
+.pct-arrow:active { background:var(--red-bg); }
+.pct-val { font-family:'Amatic SC',cursive; font-size:22px; font-weight:700; color:var(--red); width:44px; text-align:center; }
+.adj-badge { font-size:9px; font-weight:700; background:var(--red); color:white; padding:2px 7px; border-radius:20px; margin-left:4px; }
+.recap-recette-card.adjusted { border-color:var(--red); border-width:2px; }
+.pesee-card.adjusted .pesee-card-title { background:var(--red-bg); }
+.pesee-orig { font-size:10px; color:var(--tan-dark); text-decoration:line-through; margin-right:4px; }
+.pesee-new { font-weight:700; color:var(--red); }
 </style>
 </head>
 <body>
@@ -346,6 +424,7 @@ html, body {
     <div class="bottom-bar">
       <button class="btn-secondary" id="btn-resume-sel">← Sélection</button>
       <button class="btn-secondary" id="btn-resume-saisie">← Saisie</button>
+      <button class="btn-secondary" id="btn-go-bacs">Bacs →</button>
       <button class="btn-reset" id="btn-reset-all">Tout à 0</button>
     </div>
   </div>
@@ -375,6 +454,56 @@ html, body {
       <button class="btn-primary" id="btn-calc-pdf">Imprimer PDF</button>
     </div>
   </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       ÉCRAN BACS — Gestion des bacs de pointage
+       Accès : bouton "Bacs →" depuis le résumé
+       Logique : 1 recette par bac strictement.
+       Auto-répartition au premier accès, ajustable ensuite.
+       ══════════════════════════════════════════════════════ -->
+  <div class="screen" id="screen-bacs">
+    <div class="scroll-area">
+      <div class="screen-title">Bacs de pointage</div>
+      <div class="screen-subtitle">1 recette par bac · 8–12 kg par défaut</div>
+
+      <!-- Activation globale -->
+      <div class="bacs-toggle-row">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--dark)">Gestion des bacs</div>
+          <div style="font-size:10px;color:var(--tan-dark);margin-top:1px">Désactiver si pas besoin ce jour</div>
+        </div>
+        <div class="toggle-sw on" id="bacs-toggle-sw" onclick="toggleBacsEnabled()">
+          <div class="toggle-knob"></div>
+        </div>
+      </div>
+
+      <!-- Poids max global (modifiable, défaut 12 kg) -->
+      <div class="bacs-config">
+        <div style="flex:1">
+          <div style="font-size:11px;font-weight:600;color:var(--dark)">Poids max global / bac</div>
+          <div style="font-size:9px;color:var(--tan-dark);margin-top:1px">Override possible par recette ci-dessous</div>
+        </div>
+        <input type="number" id="bacs-max-global" value="12" min="1" max="30" step="0.5"
+          style="width:52px;padding:5px 7px;border:1.5px solid var(--tan);border-radius:6px;
+                 font-family:'Raleway',sans-serif;font-size:13px;font-weight:700;
+                 color:var(--red);text-align:right;outline:none;background:white;"
+          oninput="renderBacsContent()">
+        <span style="font-size:10px;color:var(--tan-dark);font-weight:600">kg</span>
+      </div>
+
+      <!-- Navigation par recette (une tab = une recette) -->
+      <div class="bac-rec-nav" id="bac-rec-nav"></div>
+
+      <!-- Contenu dynamique de la recette active -->
+      <div id="bac-rec-content"></div>
+
+    </div>
+    <div class="bottom-bar">
+      <button class="btn-secondary" id="btn-bacs-back">← Résumé</button>
+      <button class="btn-primary" id="btn-bacs-print">Imprimer fiches →</button>
+    </div>
+  </div>
+
 </div>
 
 <div class="modal-overlay" id="modal-save">
@@ -515,6 +644,20 @@ let currentStep = 0;
 let qty = {};
 let fermentation = {};         // {rec: 'j1'|'direct'}
 let levainRatioOverride = {};  // {rec: {levainNom: ratio_g_per_kg}}
+
+// ── BACS DE POINTAGE ──
+// bacs[recNom] = [{label, prio, formats: {fmtNom: qty}}]
+// Un bac = une seule recette. L'ordre des bacs = ordre de sortie du frigo.
+let bacs = {};
+let bacsEnabled = true;       // toggle global d'activation
+let bacRecActive = null;      // nom de la recette active dans l'écran bacs
+let bacsMaxParRecette = {};   // {recNom: kg} override du max par recette
+
+// ── AJUSTEMENT % PAR CUVE ──
+// cuveAjust[cle] = {enabled: bool, pct: number}
+// cle = nom recette ou famille. pct peut être négatif.
+// Multiplie tous les ingrédients de la cuve par (1 + pct/100).
+let cuveAjust = {};
 
 // ── 4. FONCTIONS UTILITAIRES ──
 function poidsCru(rec, fmt) { 
@@ -952,9 +1095,66 @@ function renderResume() {
     const det = CANAUX.map(c => { const n = (FORMATS[rec] || []).reduce((s, f) => s + (qty[rec] && qty[rec][f.nom] ? qty[rec][f.nom][c] || 0 : 0), 0); return n > 0 ? c + ': ' + n : null; }).filter(Boolean).join(' · ');
     const si = orderedRecettes.indexOf(rec);
     const fv = fermentation[rec] || 'j1';
-    const card = document.createElement('div'); card.className = 'recap-recette-card';
-    card.innerHTML = `<div><div class="recap-recette-name">${rec}</div><div class="recap-recette-detail">${det || '—'}</div><div class="edit-hint">✎ Modifier</div></div><div class="recap-recette-vals"><div class="recap-recette-pains">${p}</div><div class="recap-recette-kg">${kg.toFixed(2)} kg cru</div><div style="margin-top:4px"><span class="ferm-badge ${fv}">${fv === 'j1' ? '🌙 J+1' : '☀️ Direct'}</span></div></div>`;
-    card.addEventListener('click', () => { currentStep = si; renderStep(); goTo('screen-saisie'); });
+    // Clé d'ajustement = nom recette (on pourra grouper par famille plus tard si besoin)
+    const ajCle = rec;
+    const ajSafe = ajCle.replace(/[^a-z0-9]/gi, '_');
+    const aj = cuveAjust[ajCle];
+    const ajActif = aj && aj.enabled;
+    const mult = ajActif ? 1 + aj.pct / 100 : 1;
+    const kgAj = kg * mult;
+    const ajSign = aj ? (aj.pct >= 0 ? '+' : '') + aj.pct + '%' : '+5%';
+
+    const card = document.createElement('div');
+    card.className = 'recap-recette-card' + (ajActif ? ' adjusted' : '');
+    card.style.cssText = 'padding:0;overflow:hidden;';
+
+    // Zone principale (clic = retour saisie)
+    const mainZone = document.createElement('div');
+    mainZone.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;padding:12px 14px;cursor:pointer;';
+    mainZone.addEventListener('click', () => { currentStep = si; renderStep(); goTo('screen-saisie'); });
+    mainZone.innerHTML = `
+      <div>
+        <div class="recap-recette-name">${rec}</div>
+        <div class="recap-recette-detail">${det || '—'}</div>
+        <div class="edit-hint">✎ Modifier</div>
+        <div class="ajust-trigger ${ajActif ? 'active' : ''}" id="ajust-trig-${ajSafe}">
+          ${ajActif ? '⊕ Ajustement actif — annuler' : '⊕ Ajuster la quantité'}
+        </div>
+      </div>
+      <div class="recap-recette-vals">
+        <div class="recap-recette-pains">${p}</div>
+        <div style="text-align:right">
+          ${ajActif ? `<span class="pesee-orig">${kg.toFixed(2)}</span>` : ''}
+          <span class="recap-recette-kg" style="${ajActif ? 'color:var(--red);font-weight:700' : ''}">${kgAj.toFixed(2)} kg cru</span>
+          ${ajActif ? `<span class="adj-badge">${ajSign}</span>` : ''}
+        </div>
+        <div style="margin-top:4px"><span class="ferm-badge ${fv}">${fv === 'j1' ? '🌙 J+1' : '☀️ Direct'}</span></div>
+      </div>`;
+    // Stopper la propagation sur le lien ajustement
+    mainZone.querySelector('.ajust-trigger').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleAjust(ajCle);
+    });
+    card.appendChild(mainZone);
+
+    // Panneau ajusteur (caché par défaut, visible si actif)
+    const panel = document.createElement('div');
+    panel.className = 'ajusteur-panel' + (ajActif ? '' : ' hidden');
+    panel.id = 'ajust-panel-' + ajSafe;
+    const curPct = aj ? aj.pct : 5;
+    panel.innerHTML = `
+      <div class="ajusteur-label">
+        Ajuster la cuve
+        <small>Tous les ingrédients proportionnellement</small>
+      </div>
+      <div class="pct-control">
+        <div class="pct-arrow" id="ajust-minus-${ajSafe}">−</div>
+        <div class="pct-val" id="ajust-val-${ajSafe}">${curPct >= 0 ? '+' : ''}${curPct}%</div>
+        <div class="pct-arrow" id="ajust-plus-${ajSafe}">+</div>
+      </div>`;
+    panel.querySelector('#ajust-minus-' + ajSafe).addEventListener('click', () => changeAjustPct(ajCle, -1));
+    panel.querySelector('#ajust-plus-' + ajSafe).addEventListener('click', () => changeAjustPct(ajCle, 1));
+    card.appendChild(panel);
     rd.appendChild(card);
   });
 
@@ -972,6 +1172,15 @@ function renderResume() {
   }
 
   function buildPeseeBlocs(recsList, ftype) {
+    // Calcule le multiplicateur d'ajustement pour un groupe de recettes.
+    // On prend le mult de la première recette du groupe (elles partagent la même cuve).
+    function getMultForRecs(recs) {
+      for (const r of recs) {
+        const aj = cuveAjust[r];
+        if (aj && aj.enabled) return 1 + aj.pct / 100;
+      }
+      return 1;
+    }
     const cuvesFaites = new Set();
     getParentesAvecDecli().forEach(parent => {
       const membres = getFamille(parent).filter(r => recsList.includes(r));
@@ -981,9 +1190,20 @@ function renderResume() {
       const bi = RECETTES[parent].ingredients;
       const refRec = membres.includes(parent) ? parent : membres[0];
       const dn = bi.reduce((s, i) => s + i.ratio, 0);
-      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}"><div class="ferm-bloc-title">Cuve ${parent}</div><div class="ferm-bloc-sub">${pt.toFixed(3)} kg pâte totale</div></div><div class="ferm-bloc-steps">`;
+      const multCuve = getMultForRecs(membres);
+      const ptAdj = pt * multCuve;
+      const isAdj = Math.abs(multCuve - 1) > 0.001;
+      const adjLabel = isAdj ? ` <span class="adj-badge">${multCuve > 1 ? '+' : ''}${Math.round((multCuve-1)*100)}%</span>` : '';
+      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}"><div class="ferm-bloc-title">Cuve ${parent}${adjLabel}</div><div class="ferm-bloc-sub">${isAdj ? `<span style="text-decoration:line-through;opacity:0.6">${pt.toFixed(3)}</span> ` : ''}${ptAdj.toFixed(3)} kg pâte totale</div></div><div class="ferm-bloc-steps">`;
       h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${membres.map(r => `<span class="ferm-tag">${r}</span>`).join('')} · ${pt.toFixed(3)} kg</div></div></div>`;
-      bi.forEach(i => { h += `<div class="ing-row" style="padding-left:44px"><div class="ing-name">${i.ing}</div><div class="ing-qty">${((i.ratio / dn) * pt).toFixed(3)} <span class="ing-unit">kg</span></div></div>`; });
+      bi.forEach(i => {
+        const qOrig = (i.ratio / dn) * pt;
+        const qAdj = qOrig * multCuve;
+        const ingDisp = isAdj
+          ? `<span class="pesee-orig">${qOrig.toFixed(3)}</span><span class="pesee-new">${qAdj.toFixed(3)}</span>`
+          : qAdj.toFixed(3);
+        h += `<div class="ing-row" style="padding-left:44px"><div class="ing-name">${i.ing}</div><div class="ing-qty">${ingDisp} <span class="ing-unit">kg</span></div></div>`;
+      });
       membres.forEach(rec => {
         const p = getPoidsRec(rec); const incl = RECETTES[rec].inclusions || [];
         if (incl.length) {
@@ -1005,9 +1225,18 @@ function renderResume() {
       const p = getPoidsRec(rec); if (!p) return;
       const ings = RECETTES[rec].ingredients || (RECETTES[getParent(rec)] || {}).ingredients || [];
       const dn = ings.reduce((s, i) => s + i.ratio, 0);
-      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}"><div class="ferm-bloc-title">${rec}</div><div class="ferm-bloc-sub">${p.toFixed(3)} kg pâte</div></div><div class="ferm-bloc-steps">`;
-      h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${p.toFixed(3)} kg</div></div></div>`;
-      ings.forEach(i => { h += `<div class="ing-row" style="padding-left:44px"><div class="ing-name">${i.ing}</div><div class="ing-qty">${((i.ratio / dn) * p).toFixed(3)} <span class="ing-unit">kg</span></div></div>`; });
+      const multRec = getMultForRecs([rec]);
+      const pAdj = p * multRec;
+      const isAdjRec = Math.abs(multRec - 1) > 0.001;
+      const adjLabelRec = isAdjRec ? ` <span class="adj-badge">${multRec > 1 ? '+' : ''}${Math.round((multRec-1)*100)}%</span>` : '';
+      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}"><div class="ferm-bloc-title">${rec}${adjLabelRec}</div><div class="ferm-bloc-sub">${isAdjRec ? '<span style="text-decoration:line-through;opacity:0.6">' + p.toFixed(3) + '</span> ' : ''}${pAdj.toFixed(3)} kg pâte</div></div><div class="ferm-bloc-steps">`;
+      h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${pAdj.toFixed(3)} kg</div></div></div>`;
+      ings.forEach(i => {
+        const qO = (i.ratio / dn) * p;
+        const qA = qO * multRec;
+        const d = isAdjRec ? '<span class="pesee-orig">' + qO.toFixed(3) + '</span><span class="pesee-new">' + qA.toFixed(3) + '</span>' : qA.toFixed(3);
+        h += `<div class="ing-row" style="padding-left:44px"><div class="ing-name">${i.ing}</div><div class="ing-qty">${d} <span class="ing-unit">kg</span></div></div>`;
+      });
       if (ftype === 'j1') {
         h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">2</div><div><div class="ferm-step-main">Mise en bac · frigo</div><div class="ferm-step-detail">Pointage au froid jusqu'au lendemain</div></div></div>`;
       } else {
@@ -1339,6 +1568,9 @@ function renderSavedList(data) {
       
       fermentation = d.fermentation || {};
       levainRatioOverride = d.levainOverride || {};
+      // Restaurer les données v6 (rétro-compatible : absent dans les anciennes fournées)
+      bacs = d.bacs || {};
+      cuveAjust = d.cuveAjust || {};
       
       updateSelUI(); 
       document.getElementById('modal-save').classList.remove('open'); 
@@ -1416,7 +1648,9 @@ document.getElementById('btn-save-fournee').addEventListener('click', async () =
     selected: safeSelected, 
     qty: safeQty,
     fermentation: fermentation,
-    levainOverride: levainRatioOverride
+    levainOverride: levainRatioOverride,
+    bacs: bacs,
+    cuveAjust: cuveAjust
   }); 
   
   if (ok) { 
@@ -1431,6 +1665,386 @@ document.getElementById('btn-close-modal').addEventListener('click', () => docum
 document.getElementById('exp-pdf').addEventListener('click', exportPDF);
 document.getElementById('exp-csv').addEventListener('click', exportCSV);
 document.getElementById('exp-odoo').addEventListener('click', exportOdoo);
+
+// ── Écran bacs ──
+document.getElementById('btn-go-bacs').addEventListener('click', () => {
+  renderBacsScreen();
+  goTo('screen-bacs');
+});
+document.getElementById('btn-bacs-back').addEventListener('click', () => goTo('screen-resume'));
+document.getElementById('btn-bacs-print').addEventListener('click', printAllFiches);
+
+// ══════════════════════════════════════════════════════════════════
+// FONCTIONNALITÉ : AJUSTEMENT % PAR CUVE
+// Appelé depuis les cartes récap du résumé.
+// ══════════════════════════════════════════════════════════════════
+
+/** Active/désactive l'ajustement pour une cuve. Crée l'entrée si absente. */
+function toggleAjust(cle) {
+  if (!cuveAjust[cle]) cuveAjust[cle] = { enabled: false, pct: 5 };
+  cuveAjust[cle].enabled = !cuveAjust[cle].enabled;
+  // Rafraîchir le résumé pour refléter le changement
+  renderResume();
+}
+
+/** Change le % d'ajustement de ±1 et met à jour l'affichage. */
+function changeAjustPct(cle, delta) {
+  if (!cuveAjust[cle]) cuveAjust[cle] = { enabled: true, pct: 5 };
+  cuveAjust[cle].pct = Math.max(-50, Math.min(100, cuveAjust[cle].pct + delta));
+  renderResume();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FONCTIONNALITÉ : GESTION DES BACS DE POINTAGE
+// ══════════════════════════════════════════════════════════════════
+
+/** Active/désactive la gestion des bacs globalement. */
+function toggleBacsEnabled() {
+  bacsEnabled = !bacsEnabled;
+  const sw = document.getElementById('bacs-toggle-sw');
+  if (sw) sw.className = 'toggle-sw' + (bacsEnabled ? ' on' : '');
+}
+
+/** Retourne le poids max autorisé pour une recette donnée (kg). */
+function getBacMax(recNom) {
+  const globalMax = parseFloat(document.getElementById('bacs-max-global')?.value) || 12;
+  return bacsMaxParRecette[recNom] || globalMax;
+}
+
+/** Calcule le poids cru total d'un bac (kg) pour une recette donnée. */
+function getBacPoids(bac, recNom) {
+  let total = 0;
+  const fmts = FORMATS[recNom] || [];
+  Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
+    const fmt = fmts.find(f => f.nom === fmtNom);
+    if (fmt) total += qte * fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+  });
+  return total;
+}
+
+/** Calcule le poids total déjà affecté dans les bacs pour une recette. */
+function getPoidsAffecte(recNom) {
+  return (bacs[recNom] || []).reduce((sum, b) => sum + getBacPoids(b, recNom), 0);
+}
+
+/**
+ * Auto-répartit les pains en bacs en respectant le poids max.
+ * Appelé au premier accès à l'écran bacs pour une recette.
+ */
+function initBacsAuto(recNom) {
+  const max = getBacMax(recNom);
+  const fmts = FORMATS[recNom] || [];
+  bacs[recNom] = [];
+
+  // Collecter tous les pâtons à placer
+  const patons = [];
+  fmts.forEach(fmt => {
+    const poidsUnit = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    const total = (qty[recNom] && qty[recNom][fmt.nom])
+      ? Object.values(qty[recNom][fmt.nom]).reduce((a, b) => a + b, 0)
+      : 0;
+    if (total > 0) patons.push({ fmtNom: fmt.nom, poidsUnit, restant: total });
+  });
+
+  if (!patons.length) return;
+
+  let bacIdx = 0;
+  const newBac = () => ({
+    label: `${recNom} #${bacIdx + 1}`,
+    prio: bacIdx === 0,
+    formats: {}
+  });
+  bacs[recNom].push(newBac());
+
+  patons.forEach(p => {
+    let restant = p.restant;
+    while (restant > 0) {
+      const bac = bacs[recNom][bacIdx];
+      const deja = getBacPoids(bac, recNom);
+      const place = Math.floor((max - deja) / p.poidsUnit);
+      const aMettre = Math.min(restant, Math.max(0, place));
+      if (aMettre > 0) {
+        bac.formats[p.fmtNom] = (bac.formats[p.fmtNom] || 0) + aMettre;
+        restant -= aMettre;
+      }
+      if (restant > 0) {
+        bacIdx++;
+        bacs[recNom].push(newBac());
+      }
+    }
+  });
+}
+
+/** Affiche/rafraîchit l'écran bacs : nav + contenu de la recette active. */
+function renderBacsScreen() {
+  const nav = document.getElementById('bac-rec-nav');
+  if (!nav) return;
+  nav.innerHTML = '';
+
+  const recsList = [...selectedRecettes].filter(r => FORMATS[r] && FORMATS[r].length);
+  if (!recsList.length) return;
+
+  // Sélectionner la première recette si aucune n'est active
+  if (!bacRecActive || !selectedRecettes.has(bacRecActive)) {
+    bacRecActive = recsList[0];
+  }
+
+  // Nav tabs — une par recette sélectionnée
+  recsList.forEach(recNom => {
+    const poidsTotal = (() => {
+      let t = 0;
+      (FORMATS[recNom] || []).forEach(fmt => {
+        const pu = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+        Object.values((qty[recNom] && qty[recNom][fmt.nom]) || {}).forEach(v => { t += v * pu; });
+      });
+      return t;
+    })();
+    const affecte = getPoidsAffecte(recNom);
+    const ok = Math.abs(poidsTotal - affecte) < 0.05;
+
+    const tab = document.createElement('div');
+    tab.className = 'bac-rec-tab' + (recNom === bacRecActive ? ' active' : '');
+    tab.innerHTML = `${recNom} <span class="tab-dot ${ok ? 'ok' : 'warn'}"></span>`;
+    tab.addEventListener('click', () => { bacRecActive = recNom; renderBacsScreen(); });
+    nav.appendChild(tab);
+  });
+
+  renderBacsContent(bacRecActive);
+}
+
+/** Affiche les bacs d'une recette avec header, barre restant, liste bacs. */
+function renderBacsContent(recNom) {
+  const cont = document.getElementById('bac-rec-content');
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  // Init automatique si première visite
+  if (!bacs[recNom]) initBacsAuto(recNom);
+
+  const max = getBacMax(recNom);
+
+  // Calcul poids total de la recette
+  let poidsTotal = 0;
+  (FORMATS[recNom] || []).forEach(fmt => {
+    const pu = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    Object.values((qty[recNom] && qty[recNom][fmt.nom]) || {}).forEach(v => { poidsTotal += v * pu; });
+  });
+  const affecte = getPoidsAffecte(recNom);
+  const restant = poidsTotal - affecte;
+
+  // Header recette + override max
+  const header = document.createElement('div');
+  header.className = 'bac-rec-header';
+  header.innerHTML = `
+    <div>
+      <div class="bac-rec-title">${recNom}</div>
+      <div class="bac-rec-info">${poidsTotal.toFixed(2)} kg · ${(bacs[recNom] || []).length} bac(s)</div>
+    </div>
+    <div class="poids-override-wrap" title="Override poids max pour ${recNom}">
+      <div class="poids-override-lbl">Max</div>
+      <input class="poids-override-inp" type="number"
+        value="${bacsMaxParRecette[recNom] || ''}"
+        placeholder="${max}" min="1" max="30" step="0.5"
+        oninput="bacsMaxParRecette['${recNom}'] = parseFloat(this.value) || 0; renderBacsContent('${recNom}')">
+      <span class="poids-override-lbl">kg</span>
+    </div>`;
+  cont.appendChild(header);
+
+  // Barre poids restant
+  const restDiv = document.createElement('div');
+  restDiv.className = 'bac-restant';
+  const restOk = Math.abs(restant) < 0.05;
+  restDiv.innerHTML = `
+    <span class="bac-restant-lbl">Restant à affecter</span>
+    <span class="bac-restant-val ${restOk ? 'ok' : 'warn'}">
+      ${restant > 0.01 ? '+' : ''}${restant.toFixed(2)} kg ${restOk ? '✓' : '⚠'}
+    </span>`;
+  cont.appendChild(restDiv);
+
+  // Liste des bacs
+  (bacs[recNom] || []).forEach((bac, idx) => {
+    cont.appendChild(buildBacCard(bac, idx, recNom, max));
+  });
+
+  // Bouton ajouter
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn-add-bac';
+  addBtn.textContent = `+ Ajouter un bac ${recNom}`;
+  addBtn.addEventListener('click', () => {
+    if (!bacs[recNom]) bacs[recNom] = [];
+    bacs[recNom].push({ label: `${recNom} #${bacs[recNom].length + 1}`, prio: false, formats: {} });
+    renderBacsContent(recNom);
+    renderBacsScreen();
+  });
+  cont.appendChild(addBtn);
+}
+
+/** Construit et retourne la card DOM d'un bac. */
+function buildBacCard(bac, idx, recNom, max) {
+  const poids = getBacPoids(bac, recNom);
+  const over = poids > max + 0.01;
+
+  const card = document.createElement('div');
+  card.className = 'bac-card' + (bac.prio ? ' prio' : '');
+
+  // Header bac
+  const hdr = document.createElement('div');
+  hdr.className = 'bac-card-header';
+  hdr.innerHTML = `
+    <div class="bac-order-btns">
+      <div class="bac-order-btn" data-rec="${recNom}" data-idx="${idx}" data-dir="-1">▲</div>
+      <div class="bac-order-btn" data-rec="${recNom}" data-idx="${idx}" data-dir="1">▼</div>
+    </div>
+    <div class="bac-num">${idx + 1}</div>
+    <div class="bac-label-wrap">
+      <input class="bac-label-input" type="text" value="${bac.label}" placeholder="Nom du bac…"
+        data-rec="${recNom}" data-idx="${idx}">
+      <div class="bac-label-sub">${bac.prio ? '★ Sortir en premier' : 'Appuyer ★ pour prioriser'}</div>
+    </div>
+    <div class="bac-kg ${over ? 'over' : ''}">${poids.toFixed(2)} kg</div>
+    <div class="bac-star" data-rec="${recNom}" data-idx="${idx}">${bac.prio ? '★' : '☆'}</div>`;
+
+  // Listeners header
+  hdr.querySelectorAll('.bac-order-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = btn.dataset.rec, i = parseInt(btn.dataset.idx), d = parseInt(btn.dataset.dir);
+      const arr = bacs[r];
+      const ni = i + d;
+      if (ni < 0 || ni >= arr.length) return;
+      [arr[i], arr[ni]] = [arr[ni], arr[i]];
+      // Renommer si pattern standard
+      arr.forEach((b, j) => { if (/^.+ #\d+$/.test(b.label)) b.label = `${r} #${j + 1}`; });
+      renderBacsContent(r); renderBacsScreen();
+    });
+  });
+  hdr.querySelector('.bac-label-input').addEventListener('input', (e) => {
+    bacs[e.target.dataset.rec][parseInt(e.target.dataset.idx)].label = e.target.value;
+  });
+  hdr.querySelector('.bac-star').addEventListener('click', (e) => {
+    const r = e.target.dataset.rec, i = parseInt(e.target.dataset.idx);
+    bacs[r][i].prio = !bacs[r][i].prio;
+    renderBacsContent(r);
+  });
+  card.appendChild(hdr);
+
+  // Formats disponibles (uniquement ceux avec des pains)
+  const fmtsDispo = (FORMATS[recNom] || []).filter(fmt => {
+    const total = qty[recNom] && qty[recNom][fmt.nom]
+      ? Object.values(qty[recNom][fmt.nom]).reduce((a, b) => a + b, 0) : 0;
+    return total > 0;
+  });
+
+  fmtsDispo.forEach(fmt => {
+    const poidsUnit = Math.round(fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12)) * 1000);
+    const qte = bac.formats[fmt.nom] || 0;
+    const row = document.createElement('div');
+    row.className = 'bac-fmt-row';
+    row.innerHTML = `
+      <div class="bac-fmt-name">${fmt.nom} <span class="bac-fmt-poids">· ${poidsUnit}g cru</span></div>
+      <div class="bac-fmt-qty-wrap">
+        <div class="bac-fmt-btn" data-rec="${recNom}" data-idx="${idx}" data-fmt="${fmt.nom}" data-d="-1">−</div>
+        <div class="bac-fmt-qty">${qte}</div>
+        <div class="bac-fmt-btn" data-rec="${recNom}" data-idx="${idx}" data-fmt="${fmt.nom}" data-d="1">+</div>
+      </div>`;
+    row.querySelectorAll('.bac-fmt-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const r = btn.dataset.rec, i = parseInt(btn.dataset.idx);
+        const f = btn.dataset.fmt, d = parseInt(btn.dataset.d);
+        bacs[r][i].formats[f] = Math.max(0, (bacs[r][i].formats[f] || 0) + d);
+        renderBacsContent(r); renderBacsScreen();
+      });
+    });
+    card.appendChild(row);
+  });
+
+  // Statut poids
+  const st = document.createElement('div');
+  st.className = 'bac-status ' + (over ? 'warn' : 'ok');
+  st.textContent = over
+    ? `⚠ ${poids.toFixed(2)} kg — dépasse ${max} kg (non bloquant)`
+    : `✓ ${poids.toFixed(2)} kg — dans les limites`;
+  card.appendChild(st);
+
+  // Supprimer ce bac
+  const del = document.createElement('button');
+  del.style.cssText = 'width:100%;padding:6px;background:var(--red-bg);color:var(--red);border:none;font-family:Raleway,sans-serif;font-size:10px;font-weight:700;cursor:pointer;';
+  del.textContent = '× Supprimer ce bac';
+  del.addEventListener('click', () => {
+    bacs[recNom].splice(idx, 1);
+    // Renommer les bacs restants
+    bacs[recNom].forEach((b, j) => { if (/^.+ #\d+$/.test(b.label)) b.label = `${recNom} #${j + 1}`; });
+    renderBacsContent(recNom); renderBacsScreen();
+  });
+  card.appendChild(del);
+
+  return card;
+}
+
+/** Imprime la fiche d'un seul bac dans une nouvelle fenêtre. */
+function printFicheBac(recNom, idx) {
+  const bac = (bacs[recNom] || [])[idx];
+  if (!bac) return;
+  const poids = getBacPoids(bac, recNom);
+  const fv = fermentation[recNom] || 'j1';
+  const fermLabel = fv === 'j1' ? '🌙 J+1' : '☀️ Direct';
+  const date = new Date().toLocaleDateString('fr-FR');
+  let rows = '', totalPains = 0;
+  Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
+    if (!qte) return;
+    const fmt = (FORMATS[recNom] || []).find(f => f.nom === fmtNom);
+    const pu = fmt ? fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12)) : 0;
+    rows += `<tr><td>${fmtNom}</td><td style="text-align:center;font-size:20px;font-weight:700">${qte}</td><td style="text-align:right">${(qte * pu).toFixed(3)} kg</td></tr>`;
+    totalPains += qte;
+  });
+  const h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fiche ${bac.label}</title>
+  <style>body{font-family:Georgia,serif;max-width:580px;margin:20px auto;color:#36281A}
+  h1{font-size:30px;margin:0}h2{font-size:16px;color:#C73600;margin:3px 0 0}
+  .tags{display:flex;gap:6px;margin:8px 0}.tag{padding:3px 9px;border-radius:4px;font-size:10px;font-weight:700}
+  .t1{background:#36281A;color:#EFEDD8}.t2{background:#E0D8C0;color:#36281A}.t3{background:#FAF0EE;color:#C73600}
+  table{width:100%;border-collapse:collapse;margin:8px 0}th{background:#EFEDD8;padding:5px 7px;font-size:10px;text-align:left}
+  th:last-child{text-align:right}td{padding:6px 7px;border-top:1px solid #E0D8C0;font-size:12px}
+  .tot td{background:#EFEDD8;font-weight:700;border-top:2px solid #36281A}
+  .sec{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#AE7D66;margin:12px 0 5px}
+  .fac{background:#FAF8F0;border:1px solid #E0D8C0;border-radius:6px;padding:9px 11px}
+  .row{display:flex;gap:10px;margin-bottom:5px}.lbl{font-size:9px;font-weight:700;color:#AE7D66;text-transform:uppercase;width:60px;flex-shrink:0;padding-top:2px}
+  .val{font-size:11px;font-weight:600;flex:1}.mono{font-family:monospace;background:#EFEDD8;padding:3px 6px;border-radius:3px;font-size:10px;line-height:1.6}
+  textarea{width:100%;border:1.5px solid #D1B7A7;border-radius:5px;padding:4px 7px;font-size:11px;resize:none}
+  footer{font-size:9px;color:#AE7D66;text-align:center;border-top:1px solid #E0D8C0;padding-top:7px;margin-top:10px}
+  @media print{body{margin:8px}}</style></head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:9px;border-bottom:2px solid #36281A;margin-bottom:9px">
+    <div><h1>${bac.prio ? '★ ' : ''}Bac ${idx + 1}</h1><h2>${bac.label}</h2></div>
+    <div style="text-align:right"><div style="font-size:26px;font-weight:700">${poids.toFixed(3)} kg</div><div style="font-size:9px;color:#AE7D66;font-weight:600;text-transform:uppercase">pâte crue</div></div>
+  </div>
+  <div class="tags">
+    <span class="tag t1">${recNom}</span>
+    <span class="tag t2">${fermLabel}</span>
+    ${bac.prio ? '<span class="tag t3">★ Sortir en premier</span>' : ''}
+  </div>
+  <div class="sec">Contenu — uniquement ${recNom}</div>
+  <table><tr><th>Format</th><th style="text-align:center">Nb</th><th style="text-align:right">Poids cru</th></tr>
+  ${rows}
+  <tr class="tot"><td>Total</td><td style="text-align:center;font-size:18px">${totalPains}</td><td style="text-align:right">${poids.toFixed(3)} kg</td></tr></table>
+  <div class="sec">Façonnage</div>
+  <div class="fac">
+    <div class="row"><div class="lbl">Détente</div><div class="val">${(RECETTES[recNom] || {}).note || '20 min couvert TA'}</div></div>
+    <div class="row"><div class="lbl">Gestes</div><div class="val mono">Aplatir → rabats → bouler → clé en dessous</div></div>
+    <div class="row"><div class="lbl">Apprêt</div><div class="val">Couche lin · clé en haut</div></div>
+    <div class="row"><div class="lbl">Incisions</div><div class="val"><textarea rows="2" placeholder="Ex: 1 grigne centrale…"></textarea></div></div>
+  </div>
+  <footer>Le Fournil des Enfariné.e.s · Fournée du ${date}</footer>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(h); w.document.close(); w.focus();
+  setTimeout(() => w.print(), 400);
+}
+
+function printAllFiches() {
+  [...selectedRecettes].forEach(rec => {
+    (bacs[rec] || []).forEach((_, i) => printFicheBac(rec, i));
+  });
+}
+
+// Persister bacs + cuveAjust dans les fournées sauvegardées
 
 init();
 </script>
