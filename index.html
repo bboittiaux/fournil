@@ -412,7 +412,13 @@ html, body {
       <div class="big-stat-row" id="big-stats"></div>
       <div class="section-lbl">Par recette — touche pour modifier</div>
       <div id="recap-recettes"></div>
-      <div class="section-lbl">Pesées des cuves</div>
+      <div style="display:flex;align-items:center;margin:16px 12px 8px;">
+        <div class="section-lbl" style="margin:0;flex:1">Pesées des cuves</div>
+        <div id="bacs-toggle-resume" style="display:flex;align-items:center;gap:7px;cursor:pointer;" onclick="toggleBacsEnabled()">
+          <span style="font-size:10px;font-weight:600;color:var(--tan-dark)" id="bacs-toggle-lbl">Bacs : actifs</span>
+          <div class="toggle-sw on" id="bacs-toggle-sw"><div class="toggle-knob"></div></div>
+        </div>
+      </div>
       <div id="recap-pesees"></div>
       <div class="section-lbl">Levains à préparer</div>
       <div id="recap-levains"></div>
@@ -420,6 +426,7 @@ html, body {
       <div class="export-card" id="exp-pdf"><div><div class="export-title">Résumé PDF</div><div class="export-sub">Imprimable — toutes les pesées</div></div><div class="export-arrow">↓</div></div>
       <div class="export-card" id="exp-csv"><div><div class="export-title">Excel / CSV</div><div class="export-sub">Pesées + levains + pains</div></div><div class="export-arrow">↓</div></div>
       <div class="export-card" id="exp-odoo"><div><div class="export-title">Odoo Manufacturing Order</div><div class="export-sub">Fichier pour l'ERP</div></div><div class="export-arrow">↓</div></div>
+      <div class="export-card" id="exp-fiche-journee"><div><div class="export-title">Fiche de journée</div><div class="export-sub">Pesées + levains + bacs — tout en une page</div></div><div class="export-arrow">↓</div></div>
     </div>
     <div class="bottom-bar">
       <button class="btn-secondary" id="btn-resume-sel">← Sélection</button>
@@ -464,18 +471,7 @@ html, body {
   <div class="screen" id="screen-bacs">
     <div class="scroll-area">
       <div class="screen-title">Bacs de pointage</div>
-      <div class="screen-subtitle">1 recette par bac · 8–12 kg par défaut</div>
 
-      <!-- Activation globale -->
-      <div class="bacs-toggle-row">
-        <div>
-          <div style="font-size:12px;font-weight:700;color:var(--dark)">Gestion des bacs</div>
-          <div style="font-size:10px;color:var(--tan-dark);margin-top:1px">Désactiver si pas besoin ce jour</div>
-        </div>
-        <div class="toggle-sw on" id="bacs-toggle-sw" onclick="toggleBacsEnabled()">
-          <div class="toggle-knob"></div>
-        </div>
-      </div>
 
       <!-- Poids max global (modifiable, défaut 12 kg) -->
       <div class="bacs-config">
@@ -1083,6 +1079,58 @@ function calcLevains(allIng) {
   return r;
 }
 
+/**
+ * Calcule les ingrédients cumulés pour un sous-ensemble de recettes.
+ * Applique les overrides de levain ET le multiplicateur cuveAjust.
+ * Utilisé pour séparer les levains J+1 / Direct.
+ */
+function calcAllIngForRecs(recsList) {
+  const r = {}; const add = (i, v) => { r[i] = (r[i] || 0) + v; };
+
+  function getRatio(rec, item) {
+    if (LEVAINS[item.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][item.ing] !== undefined) {
+      return levainRatioOverride[rec][item.ing] / 1000;
+    }
+    return item.ratio;
+  }
+
+  function getMult(rec) {
+    const aj = cuveAjust[rec];
+    if (aj && aj.enabled) return 1 + aj.pct / 100;
+    return 1;
+  }
+
+  // Cuves groupées (familles)
+  getParentesAvecDecli().forEach(parent => {
+    const membres = getFamille(parent).filter(x => recsList.includes(x));
+    if (!membres.length) return;
+    const pt = membres.reduce((s, x) => s + getPoidsRec(x), 0);
+    const mult = getMult(membres[0]);
+    const bi = RECETTES[parent].ingredients;
+    const refRec = membres.includes(parent) ? parent : membres[0];
+    const dn = bi.reduce((s, i) => s + getRatio(refRec, i), 0);
+    bi.forEach(i => add(i.ing, (getRatio(refRec, i) / dn) * pt * mult));
+    membres.forEach(rec => { (RECETTES[rec].inclusions || []).forEach(inc => {
+      const p = getPoidsRec(rec);
+      add(inc.ing, (p / (1 + inc.ratio)) * inc.ratio * mult);
+    }); });
+  });
+
+  // Recettes indépendantes
+  recsList.filter(rec => {
+    const p = getParent(rec);
+    return !p || !recsList.includes(p);
+  }).forEach(rec => {
+    const p = getPoidsRec(rec); if (!p) return;
+    const ings = RECETTES[rec].ingredients || [];
+    const mult = getMult(rec);
+    const dn = ings.reduce((s, i) => s + getRatio(rec, i), 0);
+    ings.forEach(i => add(i.ing, (getRatio(rec, i) / dn) * p * mult));
+  });
+
+  return r;
+}
+
 // ── 9. RENDU RÉSUMÉ ──
 function renderResume() {
   let tp = 0, tk = 0;
@@ -1111,30 +1159,40 @@ function renderResume() {
     // Zone principale (clic = retour saisie)
     const mainZone = document.createElement('div');
     mainZone.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;padding:12px 14px;cursor:pointer;';
-    mainZone.addEventListener('click', () => { currentStep = si; renderStep(); goTo('screen-saisie'); });
-    mainZone.innerHTML = `
-      <div>
-        <div class="recap-recette-name">${rec}</div>
-        <div class="recap-recette-detail">${det || '—'}</div>
-        <div class="edit-hint">✎ Modifier</div>
-        <div class="ajust-trigger ${ajActif ? 'active' : ''}" id="ajust-trig-${ajSafe}">
-          ${ajActif ? '⊕ Ajustement actif — annuler' : '⊕ Ajuster la quantité'}
+    // Zone info (gauche) — nom, détail, fermentation
+    const infoZone = document.createElement('div');
+    infoZone.style.cssText = 'flex:1;padding:12px 10px 12px 14px;min-width:0;cursor:pointer;';
+    infoZone.addEventListener('click', () => { currentStep = si; renderStep(); goTo('screen-saisie'); });
+    infoZone.innerHTML = `
+      <div class="recap-recette-name">${rec}</div>
+      <div class="recap-recette-detail">${det || '—'}</div>
+      <div style="margin-top:4px"><span class="ferm-badge ${fv}">${fv === 'j1' ? '🌙 J+1' : '☀️ Direct'}</span></div>`;
+    mainZone.appendChild(infoZone);
+
+    // Zone actions (droite) — boutons distincts et larges
+    const actZone = document.createElement('div');
+    actZone.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;padding:10px 12px 10px 6px;flex-shrink:0;';
+    actZone.innerHTML = `
+      <div style="text-align:right">
+        <div class="recap-recette-pains">${p}</div>
+        <div style="${ajActif ? 'color:var(--red);font-weight:700' : ''}">
+          ${ajActif ? '<span class="pesee-orig">' + kg.toFixed(2) + '</span> ' : ''}${kgAj.toFixed(2)} kg cru
+          ${ajActif ? '<span class="adj-badge">' + ajSign + '</span>' : ''}
         </div>
       </div>
-      <div class="recap-recette-vals">
-        <div class="recap-recette-pains">${p}</div>
-        <div style="text-align:right">
-          ${ajActif ? `<span class="pesee-orig">${kg.toFixed(2)}</span>` : ''}
-          <span class="recap-recette-kg" style="${ajActif ? 'color:var(--red);font-weight:700' : ''}">${kgAj.toFixed(2)} kg cru</span>
-          ${ajActif ? `<span class="adj-badge">${ajSign}</span>` : ''}
-        </div>
-        <div style="margin-top:4px"><span class="ferm-badge ${fv}">${fv === 'j1' ? '🌙 J+1' : '☀️ Direct'}</span></div>
-      </div>`;
-    // Stopper la propagation sur le lien ajustement
-    mainZone.querySelector('.ajust-trigger').addEventListener('click', (e) => {
+      <button class="btn-act-modifier" data-si="${si}" style="padding:5px 10px;background:var(--paper2);border:none;border-radius:6px;font-family:'Raleway',sans-serif;font-size:10px;font-weight:700;color:var(--dark);cursor:pointer;white-space:nowrap;">✎ Modifier</button>
+      <button class="btn-act-ajuster ${ajActif ? 'active' : ''}" style="padding:5px 10px;background:${ajActif ? 'var(--red)' : 'var(--red-bg)'};border:none;border-radius:6px;font-family:'Raleway',sans-serif;font-size:10px;font-weight:700;color:${ajActif ? 'white' : 'var(--red)'};cursor:pointer;white-space:nowrap;">
+        ${ajActif ? '⊕ ' + ajSign : '⊕ Ajuster'}
+      </button>`;
+    actZone.querySelector('.btn-act-modifier').addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentStep = si; renderStep(); goTo('screen-saisie');
+    });
+    actZone.querySelector('.btn-act-ajuster').addEventListener('click', (e) => {
       e.stopPropagation();
       toggleAjust(ajCle);
     });
+    mainZone.appendChild(actZone);
     card.appendChild(mainZone);
 
     // Panneau ajusteur (caché par défaut, visible si actif)
@@ -1159,6 +1217,14 @@ function renderResume() {
   });
 
   const pd = document.getElementById('recap-pesees'); pd.innerHTML = '';
+  // Délégateur clic sur bandeaux cuves → écran bacs
+  pd.addEventListener('click', (e) => {
+    const hdr = e.target.closest('[data-goto-bac]');
+    if (!hdr) return;
+    bacRecActive = hdr.dataset.gotoBac;
+    renderBacsScreen();
+    goTo('screen-bacs');
+  });
 
   function buildPesees(recsJ1, recsDirect) {
     if (recsJ1.length) {
@@ -1194,7 +1260,7 @@ function renderResume() {
       const ptAdj = pt * multCuve;
       const isAdj = Math.abs(multCuve - 1) > 0.001;
       const adjLabel = isAdj ? ` <span class="adj-badge">${multCuve > 1 ? '+' : ''}${Math.round((multCuve-1)*100)}%</span>` : '';
-      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}"><div class="ferm-bloc-title">Cuve ${parent}${adjLabel}</div><div class="ferm-bloc-sub">${isAdj ? `<span style="text-decoration:line-through;opacity:0.6">${pt.toFixed(3)}</span> ` : ''}${ptAdj.toFixed(3)} kg pâte totale</div></div><div class="ferm-bloc-steps">`;
+      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}" data-goto-bac="${membres[0]}" style="cursor:pointer" title="Voir les bacs →"><div class="ferm-bloc-title">Cuve ${parent}${adjLabel} <span style="font-size:11px;opacity:0.75">↗ bacs</span></div><div class="ferm-bloc-sub">${isAdj ? `<span style="text-decoration:line-through;opacity:0.6">${pt.toFixed(3)}</span> ` : ''}${ptAdj.toFixed(3)} kg pâte totale</div></div><div class="ferm-bloc-steps">`;
       h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${membres.map(r => `<span class="ferm-tag">${r}</span>`).join('')} · ${pt.toFixed(3)} kg</div></div></div>`;
       bi.forEach(i => {
         const qOrig = (i.ratio / dn) * pt;
@@ -1258,14 +1324,43 @@ function renderResume() {
     pd.innerHTML += recap;
   }
 
-  const allIng = calcAllIng(); const levains = calcLevains(allIng);
   const ld = document.getElementById('recap-levains'); ld.innerHTML = '';
-  if (!Object.keys(levains).length) { ld.innerHTML = '<div style="color:var(--tan-dark);font-size:13px;padding:4px 0;margin:0 10px">Aucun levain requis.</div>'; }
-  else {
+
+  // Séparer les recettes J+1 et Direct pour afficher des levains distincts
+  const recsJ1_lev = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
+  const recsDirect_lev = orderedRecettes.filter(r => fermentation[r] === 'direct');
+
+  function renderLevainGroup(recsList, label, colorClass) {
+    if (!recsList.length) return;
+    const ing = calcAllIngForRecs(recsList);
+    const levains = calcLevains(ing);
+    if (!Object.keys(levains).length) return;
+    ld.innerHTML += `<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--${colorClass === 'j1' ? 'dark' : 'red'});margin:10px 12px 6px">${label}</div>`;
     Object.entries(levains).forEach(([lev, data]) => {
       let h = `<div class="levain-card"><div class="levain-card-title"><span>${lev}</span><span class="levain-total">${data.total.toFixed(3)} kg</span></div>`;
-      data.compos.forEach(c => { h += `<div class="ing-row"><div class="ing-name">${c.ing}</div><div class="ing-qty">${c.qty.toFixed(3)} <span class="ing-unit">kg</span></div></div>`; }); h += '</div>'; ld.innerHTML += h;
+      data.compos.forEach(c => { h += `<div class="ing-row"><div class="ing-name">${c.ing}</div><div class="ing-qty">${c.qty.toFixed(3)} <span class="ing-unit">kg</span></div></div>`; });
+      h += '</div>';
+      ld.innerHTML += h;
     });
+  }
+
+  if (recsJ1_lev.length && recsDirect_lev.length) {
+    // Les deux fermentations : afficher séparément
+    renderLevainGroup(recsJ1_lev, '🌙 Levain J+1 — à préparer ce soir', 'j1');
+    renderLevainGroup(recsDirect_lev, '☀️ Levain Direct — à préparer demain matin', 'direct');
+  } else {
+    // Une seule fermentation : afficher sans label
+    const allIng = calcAllIng();
+    const levains = calcLevains(allIng);
+    if (!Object.keys(levains).length) {
+      ld.innerHTML = '<div style="color:var(--tan-dark);font-size:13px;padding:4px 0;margin:0 10px">Aucun levain requis.</div>';
+    } else {
+      Object.entries(levains).forEach(([lev, data]) => {
+        let h = `<div class="levain-card"><div class="levain-card-title"><span>${lev}</span><span class="levain-total">${data.total.toFixed(3)} kg</span></div>`;
+        data.compos.forEach(c => { h += `<div class="ing-row"><div class="ing-name">${c.ing}</div><div class="ing-qty">${c.qty.toFixed(3)} <span class="ing-unit">kg</span></div></div>`; });
+        h += '</div>'; ld.innerHTML += h;
+      });
+    }
   }
 }
 
@@ -1369,12 +1464,27 @@ function buildRecCard(rec) {
   bHTML += `<div class="editor-section-title">Ordre et Affichage</div>`;
   bHTML += `<div class="field-row"><span class="field-label">Position dans la liste (1 = premier)</span><input class="field-input" type="number" step="1" value="${def.ordre || 99}" data-ordre="${rec}"></div>`;
 
+  // Section façonnage — utilisée sur la fiche bac
+  const fac = def.faconnage || {};
+  bHTML += `<div class="editor-section-title">Façonnage (affiché sur la fiche bac)</div>`;
+  bHTML += `<div class="field-row"><span class="field-label">Détente</span><input class="field-input wide" type="text" value="${fac.detente || ''}" placeholder="Ex: 20 min couvert TA" data-fac-rec="${rec}" data-fac-field="detente"></div>`;
+  bHTML += `<div class="field-row"><span class="field-label">Gestes</span><input class="field-input wide" type="text" value="${fac.gestes || ''}" placeholder="Ex: Aplatir → rabats → bouler" data-fac-rec="${rec}" data-fac-field="gestes"></div>`;
+  bHTML += `<div class="field-row"><span class="field-label">Apprêt</span><input class="field-input wide" type="text" value="${fac.appret || ''}" placeholder="Ex: Couche lin · clé en haut" data-fac-rec="${rec}" data-fac-field="appret"></div>`;
+  bHTML += `<div class="field-row"><span class="field-label">Incisions</span><input class="field-input wide" type="text" value="${fac.incisions || ''}" placeholder="Ex: 1 grigne centrale, lame inclinée" data-fac-rec="${rec}" data-fac-field="incisions"></div>`;
+
   if (!estDecli) bHTML += `<button class="btn-new-decli" data-new-decli="${rec}">+ Créer une déclinaison de ${rec}</button>`;
   bHTML += `<button class="btn-danger-full" data-del-rec="${rec}">Supprimer${estDecli ? ' cette déclinaison' : ' cette recette'}</button>`;
   body.innerHTML = bHTML;
   
   header.addEventListener('click', () => { body.classList.toggle('open'); header.querySelector('.editor-chevron').textContent = body.classList.contains('open') ? '▴' : '▾'; });
   
+  body.querySelectorAll('[data-fac-rec]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const r = inp.dataset.facRec, field = inp.dataset.facField;
+      if (!RECETTES[r].faconnage) RECETTES[r].faconnage = {};
+      RECETTES[r].faconnage[field] = inp.value;
+    });
+  });
   body.querySelectorAll('[data-ordre]').forEach(inp => { 
     inp.addEventListener('input', () => { 
       RECETTES[inp.dataset.ordre].ordre = parseInt(inp.value) || 99; 
@@ -1662,6 +1772,9 @@ document.getElementById('btn-save-fournee').addEventListener('click', async () =
 
 document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('modal-save').classList.remove('open'));
 
+// ── Fiche journée complète ──
+document.getElementById('exp-fiche-journee').addEventListener('click', printFicheJournee);
+
 document.getElementById('exp-pdf').addEventListener('click', exportPDF);
 document.getElementById('exp-csv').addEventListener('click', exportCSV);
 document.getElementById('exp-odoo').addEventListener('click', exportOdoo);
@@ -1701,8 +1814,12 @@ function changeAjustPct(cle, delta) {
 /** Active/désactive la gestion des bacs globalement. */
 function toggleBacsEnabled() {
   bacsEnabled = !bacsEnabled;
-  const sw = document.getElementById('bacs-toggle-sw');
-  if (sw) sw.className = 'toggle-sw' + (bacsEnabled ? ' on' : '');
+  // Mettre à jour tous les toggles qui portent cet ID
+  document.querySelectorAll('#bacs-toggle-sw').forEach(sw => {
+    sw.className = 'toggle-sw' + (bacsEnabled ? ' on' : '');
+  });
+  const lbl = document.getElementById('bacs-toggle-lbl');
+  if (lbl) lbl.textContent = bacsEnabled ? 'Bacs : actifs' : 'Bacs : désactivés';
 }
 
 /** Retourne le poids max autorisé pour une recette donnée (kg). */
@@ -1838,7 +1955,7 @@ function renderBacsContent(recNom) {
   header.innerHTML = `
     <div>
       <div class="bac-rec-title">${recNom}</div>
-      <div class="bac-rec-info">${poidsTotal.toFixed(2)} kg · ${(bacs[recNom] || []).length} bac(s)</div>
+      <div class="bac-rec-info">${poidsTotal.toFixed(2)} kg pâte crue · ${(bacs[recNom] || []).length} bac${(bacs[recNom] || []).length > 1 ? 's' : ''} affecté${(bacs[recNom] || []).length > 1 ? 's' : ''}</div>
     </div>
     <div class="poids-override-wrap" title="Override poids max pour ${recNom}">
       <div class="poids-override-lbl">Max</div>
@@ -1961,9 +2078,23 @@ function buildBacCard(bac, idx, recNom, max) {
   const st = document.createElement('div');
   st.className = 'bac-status ' + (over ? 'warn' : 'ok');
   st.textContent = over
-    ? `⚠ ${poids.toFixed(2)} kg — dépasse ${max} kg (non bloquant)`
+    ? `⚠ Dépasse ${max} kg`
     : `✓ ${poids.toFixed(2)} kg — dans les limites`;
   card.appendChild(st);
+
+  // Infos façonnage de la recette (configurables dans l'éditeur)
+  const fac = (RECETTES[recNom] || {}).faconnage || {};
+  if (fac.detente || fac.gestes || fac.appret || fac.incisions) {
+    const facDiv = document.createElement('div');
+    facDiv.style.cssText = 'border-top:1px solid var(--paper2);padding:8px 10px;background:var(--paper);';
+    facDiv.innerHTML = `
+      <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--tan-dark);margin-bottom:6px">Façonnage</div>
+      ${fac.detente ? `<div style="display:flex;gap:8px;margin-bottom:4px"><span style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;width:58px;flex-shrink:0">Détente</span><span style="font-size:11px;color:var(--dark)">${fac.detente}</span></div>` : ''}
+      ${fac.gestes ? `<div style="display:flex;gap:8px;margin-bottom:4px"><span style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;width:58px;flex-shrink:0">Gestes</span><span style="font-size:11px;color:var(--dark);font-family:monospace;background:var(--paper2);padding:2px 5px;border-radius:3px">${fac.gestes}</span></div>` : ''}
+      ${fac.appret ? `<div style="display:flex;gap:8px;margin-bottom:4px"><span style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;width:58px;flex-shrink:0">Apprêt</span><span style="font-size:11px;color:var(--dark)">${fac.appret}</span></div>` : ''}
+      ${fac.incisions ? `<div style="display:flex;gap:8px"><span style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;width:58px;flex-shrink:0">Incisions</span><span style="font-size:11px;color:var(--dark)">${fac.incisions}</span></div>` : ''}`;
+    card.appendChild(facDiv);
+  }
 
   // Supprimer ce bac
   const del = document.createElement('button');
@@ -1988,6 +2119,7 @@ function printFicheBac(recNom, idx) {
   const fv = fermentation[recNom] || 'j1';
   const fermLabel = fv === 'j1' ? '🌙 J+1' : '☀️ Direct';
   const date = new Date().toLocaleDateString('fr-FR');
+  const fac = (RECETTES[recNom] || {}).faconnage || {};
   let rows = '', totalPains = 0;
   Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
     if (!qte) return;
@@ -2026,10 +2158,10 @@ function printFicheBac(recNom, idx) {
   <tr class="tot"><td>Total</td><td style="text-align:center;font-size:18px">${totalPains}</td><td style="text-align:right">${poids.toFixed(3)} kg</td></tr></table>
   <div class="sec">Façonnage</div>
   <div class="fac">
-    <div class="row"><div class="lbl">Détente</div><div class="val">${(RECETTES[recNom] || {}).note || '20 min couvert TA'}</div></div>
-    <div class="row"><div class="lbl">Gestes</div><div class="val mono">Aplatir → rabats → bouler → clé en dessous</div></div>
-    <div class="row"><div class="lbl">Apprêt</div><div class="val">Couche lin · clé en haut</div></div>
-    <div class="row"><div class="lbl">Incisions</div><div class="val"><textarea rows="2" placeholder="Ex: 1 grigne centrale…"></textarea></div></div>
+    ${fac.detente ? `<div class="row"><div class="lbl">Détente</div><div class="val">${fac.detente}</div></div>` : ''}
+    ${fac.gestes ? `<div class="row"><div class="lbl">Gestes</div><div class="val mono">${fac.gestes}</div></div>` : ''}
+    ${fac.appret ? `<div class="row"><div class="lbl">Apprêt</div><div class="val">${fac.appret}</div></div>` : ''}
+    ${fac.incisions ? `<div class="row"><div class="lbl">Incisions</div><div class="val">${fac.incisions}</div></div>` : '<div class="row"><div class="lbl">Incisions</div><div class="val"><textarea rows="2" placeholder="Ex: 1 grigne centrale…"></textarea></div></div>'}
   </div>
   <footer>Le Fournil des Enfariné.e.s · Fournée du ${date}</footer>
   </body></html>`;
@@ -2045,6 +2177,174 @@ function printAllFiches() {
 }
 
 // Persister bacs + cuveAjust dans les fournées sauvegardées
+
+/**
+ * Imprime une fiche de journée complète :
+ * - Pesées des cuves (par fermentation)
+ * - Levains à préparer (J+1 et Direct séparés)
+ * - Bacs dans l'ordre (prioritaires en premier)
+ */
+function printFicheJournee() {
+  const date = new Date().toLocaleDateString('fr-FR');
+  let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournée ${date}</title>
+  <style>
+    body{font-family:Georgia,serif;font-size:12px;color:#36281A;padding:16px;max-width:700px;margin:0 auto}
+    h1{font-size:24px;margin:0 0 4px}
+    .date{font-size:11px;color:#AE7D66;margin-bottom:14px}
+    h2{font-size:15px;margin:18px 0 6px;padding-bottom:4px;border-bottom:2px solid #36281A}
+    h2.j1{border-color:#36281A;color:#36281A}
+    h2.direct{border-color:#C73600;color:#C73600}
+    h3{font-size:13px;margin:12px 0 4px;color:#AE7D66}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px}
+    th{background:#EFEDD8;padding:5px 7px;font-size:10px;font-weight:700;text-align:left}
+    th:last-child{text-align:right}
+    td{padding:6px 7px;border-top:1px solid #E0D8C0;font-size:12px}
+    td.r{text-align:right;font-weight:700}
+    .bac{background:#FAF8F0;border:1px solid #E0D8C0;border-radius:6px;padding:10px 12px;margin-bottom:8px;page-break-inside:avoid}
+    .bac.prio{border-color:#C73600;border-width:2px}
+    .bac-title{font-size:14px;font-weight:700;margin-bottom:4px}
+    .bac-title.prio{color:#C73600}
+    .bac-sub{font-size:10px;color:#AE7D66;margin-bottom:7px}
+    .fac{display:grid;grid-template-columns:60px 1fr;gap:4px;font-size:11px;margin-top:7px;border-top:1px solid #E0D8C0;padding-top:7px}
+    .fac-lbl{font-size:9px;font-weight:700;color:#AE7D66;text-transform:uppercase;padding-top:1px}
+    .stats{display:flex;gap:16px;margin-bottom:14px}
+    .stat{text-align:center;background:#36281A;color:#EFEDD8;padding:8px 16px;border-radius:6px}
+    .stat-val{font-size:22px;font-weight:700}
+    .stat-lbl{font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px}
+    @media print{body{padding:8px}.bac{page-break-inside:avoid}}
+  </style></head><body>
+  <h1>Le Fournil des Enfariné.e.s</h1>
+  <div class="date">Fournée du ${date}</div>`;
+
+  // Stats globales
+  let tp = 0, tk = 0;
+  orderedRecettes.forEach(r => { tp += getTotalPains(r); tk += getPoidsRec(r); });
+  h += `<div class="stats">
+    <div class="stat"><div class="stat-val">${tp}</div><div class="stat-lbl">Pains</div></div>
+    <div class="stat"><div class="stat-val">${tk.toFixed(1)} kg</div><div class="stat-lbl">Pâte crue</div></div>
+  </div>`;
+
+  const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
+  const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
+
+  // Fonction locale pour générer le tableau d'une cuve
+  function cuveHTML(recsList) {
+    let out = '';
+    const cuvesFaites = new Set();
+    getParentesAvecDecli().forEach(parent => {
+      const membres = getFamille(parent).filter(r => recsList.includes(r));
+      if (!membres.length) return;
+      cuvesFaites.add(parent);
+      const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
+      const mult = (() => { for (const r of membres) { const aj = cuveAjust[r]; if (aj && aj.enabled) return 1 + aj.pct / 100; } return 1; })();
+      const ptAdj = pt * mult;
+      const bi = RECETTES[parent].ingredients;
+      const dn = bi.reduce((s, i) => s + i.ratio, 0);
+      const adjBadge = Math.abs(mult-1) > 0.001 ? ` (+${Math.round((mult-1)*100)}%)` : '';
+      out += `<h3>Cuve ${parent}${adjBadge} — ${ptAdj.toFixed(3)} kg</h3>`;
+      out += `<table><tr><th>Ingrédient</th><th style="text-align:right">Quantité</th></tr>`;
+      bi.forEach(i => {
+        const q = (i.ratio / dn) * ptAdj;
+        out += `<tr><td>${i.ing}</td><td class="r">${q >= 1 ? q.toFixed(3) + ' kg' : Math.round(q*1000) + ' g'}</td></tr>`;
+      });
+      out += '</table>';
+    });
+    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+      const p = getPoidsRec(rec); if (!p) return;
+      const mult = (() => { const aj = cuveAjust[rec]; return aj && aj.enabled ? 1 + aj.pct/100 : 1; })();
+      const pAdj = p * mult;
+      const ings = RECETTES[rec].ingredients || [];
+      const dn = ings.reduce((s, i) => s + i.ratio, 0);
+      const adjBadge = Math.abs(mult-1) > 0.001 ? ` (+${Math.round((mult-1)*100)}%)` : '';
+      out += `<h3>${rec}${adjBadge} — ${pAdj.toFixed(3)} kg</h3>`;
+      out += `<table><tr><th>Ingrédient</th><th style="text-align:right">Quantité</th></tr>`;
+      ings.forEach(i => {
+        const q = (i.ratio / dn) * pAdj;
+        out += `<tr><td>${i.ing}</td><td class="r">${q >= 1 ? q.toFixed(3) + ' kg' : Math.round(q*1000) + ' g'}</td></tr>`;
+      });
+      out += '</table>';
+    });
+    return out;
+  }
+
+  // Pesées J+1
+  if (recsJ1.length) {
+    h += `<h2 class="j1">🌙 Ce soir — Pesées J+1</h2>`;
+    h += cuveHTML(recsJ1);
+  }
+  // Pesées Direct
+  if (recsDirect.length) {
+    h += `<h2 class="direct">☀️ Demain matin — Pesées Direct</h2>`;
+    h += cuveHTML(recsDirect);
+  }
+
+  // Levains
+  function levainHTML(recsList, label) {
+    const ing = calcAllIngForRecs(recsList);
+    const levains = calcLevains(ing);
+    if (!Object.keys(levains).length) return '';
+    let out = `<h3>${label}</h3>`;
+    Object.entries(levains).forEach(([lev, data]) => {
+      out += `<table><tr><th colspan="2">${lev} — ${data.total.toFixed(3)} kg total</th></tr>`;
+      data.compos.forEach(c => { out += `<tr><td>${c.ing}</td><td class="r">${c.qty.toFixed(3)} kg</td></tr>`; });
+      out += '</table>';
+    });
+    return out;
+  }
+
+  if (recsJ1.length || recsDirect.length) {
+    h += `<h2>Levains à préparer</h2>`;
+    if (recsJ1.length && recsDirect.length) {
+      h += levainHTML(recsJ1, '🌙 J+1 — ce soir');
+      h += levainHTML(recsDirect, '☀️ Direct — demain matin');
+    } else {
+      h += levainHTML(orderedRecettes, '');
+    }
+  }
+
+  // Bacs — triés : prioritaires d'abord, puis J+1, puis Direct
+  h += `<h2>Bacs de pointage</h2>`;
+  let hasBacs = false;
+  orderedRecettes.forEach(rec => {
+    const bacList = (bacs[rec] || []);
+    if (!bacList.length) return;
+    // Trier : prio en premier
+    const sorted = [...bacList].sort((a, b) => (b.prio ? 1 : 0) - (a.prio ? 1 : 0));
+    sorted.forEach((bac, i) => {
+      hasBacs = true;
+      const poids = getBacPoids(bac, rec);
+      const fv = (fermentation[rec] || 'j1') === 'j1' ? '🌙 J+1' : '☀️ Direct';
+      const fac = (RECETTES[rec] || {}).faconnage || {};
+      h += `<div class="bac ${bac.prio ? 'prio' : ''}">
+        <div class="bac-title ${bac.prio ? 'prio' : ''}">${bac.prio ? '★ ' : ''}${bac.label}</div>
+        <div class="bac-sub">${rec} · ${fv} · ${poids.toFixed(3)} kg pâte crue</div>
+        <table><tr><th>Format</th><th style="text-align:center">Nb</th><th style="text-align:right">Poids cru</th></tr>`;
+      Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
+        if (!qte) return;
+        const fmt = (FORMATS[rec] || []).find(f => f.nom === fmtNom);
+        const pu = fmt ? fmt.poidsCuit / (1 - ((RECETTES[rec] || {}).perte || 0.12)) : 0;
+        h += `<tr><td>${fmtNom}</td><td style="text-align:center">${qte}</td><td class="r">${(qte*pu).toFixed(3)} kg</td></tr>`;
+      });
+      h += `<tr style="background:#EFEDD8;font-weight:700"><td>Total</td><td style="text-align:center">${Object.values(bac.formats||{}).reduce((a,b)=>a+b,0)}</td><td class="r">${poids.toFixed(3)} kg</td></tr></table>`;
+      if (fac.detente || fac.gestes || fac.appret || fac.incisions) {
+        h += `<div class="fac">
+          ${fac.detente ? `<span class="fac-lbl">Détente</span><span>${fac.detente}</span>` : ''}
+          ${fac.gestes ? `<span class="fac-lbl">Gestes</span><span style="font-family:monospace">${fac.gestes}</span>` : ''}
+          ${fac.appret ? `<span class="fac-lbl">Apprêt</span><span>${fac.appret}</span>` : ''}
+          ${fac.incisions ? `<span class="fac-lbl">Incisions</span><span>${fac.incisions}</span>` : ''}
+        </div>`;
+      }
+      h += '</div>';
+    });
+  });
+  if (!hasBacs) h += `<p style="color:#AE7D66;font-style:italic">Aucun bac défini — accéder à l'écran Bacs pour les configurer.</p>`;
+
+  h += `</body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(h); w.document.close(); w.focus();
+  setTimeout(() => w.print(), 500);
+}
+
 
 init();
 </script>
