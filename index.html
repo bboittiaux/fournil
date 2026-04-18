@@ -457,13 +457,7 @@ html, body {
       <div class="big-stat-row" id="big-stats"></div>
       <div class="section-lbl">Par recette — touche pour modifier</div>
       <div id="recap-recettes"></div>
-      <div style="display:flex;align-items:center;margin:16px 12px 8px;">
-        <div class="section-lbl" style="margin:0;flex:1">Pesées des cuves</div>
-        <div id="bacs-toggle-resume" style="display:flex;align-items:center;gap:7px;cursor:pointer;" onclick="toggleBacsEnabled()">
-          <span style="font-size:10px;font-weight:600;color:var(--tan-dark)" id="bacs-toggle-lbl">Bacs : actifs</span>
-          <div class="toggle-sw on" id="bacs-toggle-sw"><div class="toggle-knob"></div></div>
-        </div>
-      </div>
+      <div class="section-lbl">Pesées des cuves</div>
       <div id="recap-pesees"></div>
       <div class="section-lbl">Levains à préparer</div>
       <div id="recap-levains"></div>
@@ -1089,6 +1083,14 @@ function updateLiveTotals(rec) {
 
 // ── 8. CALCULS DES PESÉES ──
 function getPoidsRec(rec) { let k = 0; (FORMATS[rec] || []).forEach(fmt => { const pc = poidsCru(rec, fmt); CANAUX.forEach(c => { k += (qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0) * pc; }); }); return k; }
+
+/** Retourne le poids total de pâte + inclusions pour une recette.
+ *  Ex: Graines 10kg pâte + 13% graines = 11.3 kg dans le bac. */
+function getPoidsRecTotal(rec) {
+  const base = getPoidsRec(rec);
+  const inclRatio = (RECETTES[rec] && RECETTES[rec].inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
+  return base * (1 + inclRatio);
+}
 function getTotalPains(rec) { let n = 0; (FORMATS[rec] || []).forEach(fmt => { CANAUX.forEach(c => { n += qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0; }); }); return n; }
 
 function calcAllIng() {
@@ -1217,12 +1219,12 @@ function calcAllIngForRecs(recsList, ftype) {
 // ── 9. RENDU RÉSUMÉ ──
 function renderResume() {
   let tp = 0, tk = 0;
-  orderedRecettes.forEach(r => { tp += getTotalPains(r); tk += getPoidsRec(r); });
+  orderedRecettes.forEach(r => { tp += getTotalPains(r); tk += getPoidsRecTotal(r); });
   document.getElementById('big-stats').innerHTML = `<div class="big-stat"><div class="big-stat-val">${tp}</div><div class="big-stat-lbl">Total pains</div></div><div class="big-stat"><div class="big-stat-val">${tk.toFixed(1)}</div><div class="big-stat-lbl">kg pâte crue</div></div>`;
 
   const rd = document.getElementById('recap-recettes'); rd.innerHTML = '';
   orderedRecettes.forEach(rec => {
-    const p = getTotalPains(rec), kg = getPoidsRec(rec);
+    const p = getTotalPains(rec), kg = getPoidsRecTotal(rec);
     const det = CANAUX.map(c => { const n = (FORMATS[rec] || []).reduce((s, f) => s + (qty[rec] && qty[rec][f.nom] ? qty[rec][f.nom][c] || 0 : 0), 0); return n > 0 ? c + ': ' + n : null; }).filter(Boolean).join(' · ');
     const si = orderedRecettes.indexOf(rec);
     const fv = fermentation[rec] || 'j1';
@@ -1241,10 +1243,10 @@ function renderResume() {
 
     // Zone principale (clic = retour saisie)
     const mainZone = document.createElement('div');
-    mainZone.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;padding:12px 14px;cursor:pointer;';
+    mainZone.style.cssText = 'display:flex;justify-content:space-between;align-items:stretch;';
     // Zone info (gauche) — nom, détail, fermentation
     const infoZone = document.createElement('div');
-    infoZone.style.cssText = 'flex:1;padding:12px 10px 12px 14px;min-width:0;cursor:pointer;';
+    infoZone.style.cssText = 'flex:1;padding:12px 10px 12px 14px;min-width:0;cursor:pointer;overflow:hidden;';
     infoZone.addEventListener('click', () => { currentStep = si; renderStep(); goTo('screen-saisie'); });
     infoZone.innerHTML = `
       <div class="recap-recette-name">${rec}</div>
@@ -1252,29 +1254,41 @@ function renderResume() {
       <div style="margin-top:4px"><span class="ferm-badge ${fv}">${fv === 'j1' ? '🌙 J+1' : '☀️ Direct'}</span></div>`;
     mainZone.appendChild(infoZone);
 
-    // Zone actions (droite) — boutons distincts et larges
+    // Zone droite : stats + boutons d'action bien cliquables
     const actZone = document.createElement('div');
-    actZone.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;padding:10px 12px 10px 6px;flex-shrink:0;';
-    actZone.innerHTML = `
-      <div style="text-align:right">
-        <div class="recap-recette-pains">${p}</div>
-        <div style="${ajActif ? 'color:var(--red);font-weight:700' : ''}">
-          ${ajActif ? '<span class="pesee-orig">' + kg.toFixed(2) + '</span> ' : ''}${kgAj.toFixed(2)} kg cru
-          ${ajActif ? '<span class="adj-badge">' + ajSign + '</span>' : ''}
-        </div>
-      </div>
-      <button class="btn-act-modifier" data-si="${si}" style="padding:5px 10px;background:var(--paper2);border:none;border-radius:6px;font-family:'Raleway',sans-serif;font-size:10px;font-weight:700;color:var(--dark);cursor:pointer;white-space:nowrap;">✎ Modifier</button>
-      <button class="btn-act-ajuster ${ajActif ? 'active' : ''}" style="padding:5px 10px;background:${ajActif ? 'var(--red)' : 'var(--red-bg)'};border:none;border-radius:6px;font-family:'Raleway',sans-serif;font-size:10px;font-weight:700;color:${ajActif ? 'white' : 'var(--red)'};cursor:pointer;white-space:nowrap;">
+    actZone.style.cssText = 'display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;border-left:1px solid var(--paper2);flex-shrink:0;width:100px;';
+
+    // Stats en haut
+    const statsZone = document.createElement('div');
+    statsZone.style.cssText = 'padding:10px 10px 6px;text-align:center;';
+    statsZone.innerHTML = `
+      <div class="recap-recette-pains">${p}</div>
+      <div style="font-size:10px;font-weight:600;${ajActif ? 'color:var(--red)' : 'color:var(--tan-dark)'}">
+        ${ajActif ? '<span style="text-decoration:line-through;opacity:0.5;font-size:9px">' + kg.toFixed(1) + '</span><br>' : ''}
+        ${kgAj.toFixed(2)} kg
+        ${ajActif ? '<span class="adj-badge" style="display:block;margin-top:2px">' + ajSign + '</span>' : ''}
+      </div>`;
+    actZone.appendChild(statsZone);
+
+    // Boutons en bas — séparateur + boutons empilés bien cliquables
+    const btnsZone = document.createElement('div');
+    btnsZone.style.cssText = 'border-top:1px solid var(--paper2);display:flex;flex-direction:column;';
+    btnsZone.innerHTML = `
+      <button class="btn-act-modifier" style="padding:9px 6px;background:var(--paper2);border:none;border-bottom:1px solid var(--paper);font-family:'Raleway',sans-serif;font-size:11px;font-weight:700;color:var(--dark);cursor:pointer;width:100%;text-align:center;">
+        ✎ Modifier
+      </button>
+      <button class="btn-act-ajuster" style="padding:9px 6px;background:${ajActif ? 'var(--red)' : 'var(--red-bg)'};border:none;font-family:'Raleway',sans-serif;font-size:11px;font-weight:700;color:${ajActif ? 'white' : 'var(--red)'};cursor:pointer;width:100%;text-align:center;">
         ${ajActif ? '⊕ ' + ajSign : '⊕ Ajuster'}
       </button>`;
-    actZone.querySelector('.btn-act-modifier').addEventListener('click', (e) => {
+    btnsZone.querySelector('.btn-act-modifier').addEventListener('click', (e) => {
       e.stopPropagation();
       currentStep = si; renderStep(); goTo('screen-saisie');
     });
-    actZone.querySelector('.btn-act-ajuster').addEventListener('click', (e) => {
+    btnsZone.querySelector('.btn-act-ajuster').addEventListener('click', (e) => {
       e.stopPropagation();
       toggleAjust(ajCle);
     });
+    actZone.appendChild(btnsZone);
     mainZone.appendChild(actZone);
     card.appendChild(mainZone);
 
@@ -1980,9 +1994,13 @@ function getBacMax(recNom) {
 function getBacPoids(bac, recNom) {
   let total = 0;
   const fmts = FORMATS[recNom] || [];
+  const inclRatio = ((RECETTES[recNom] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
   Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
     const fmt = fmts.find(f => f.nom === fmtNom);
-    if (fmt) total += qte * fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    if (fmt) {
+      const poidsPate = qte * fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+      total += poidsPate * (1 + inclRatio); // pâte + inclusions mélangées
+    }
   });
   return total;
 }
@@ -2004,7 +2022,9 @@ function initBacsAuto(recNom) {
   // Collecter tous les pâtons à placer
   const patons = [];
   fmts.forEach(fmt => {
-    const poidsUnit = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    const poidsPateUnit = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    const inclRatioAuto = ((RECETTES[recNom] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
+    const poidsUnit = poidsPateUnit * (1 + inclRatioAuto); // pâte + inclusions
     const total = (qty[recNom] && qty[recNom][fmt.nom])
       ? Object.values(qty[recNom][fmt.nom]).reduce((a, b) => a + b, 0)
       : 0;
@@ -2057,14 +2077,7 @@ function renderBacsScreen() {
 
   // Nav tabs — une par recette sélectionnée
   recsList.forEach(recNom => {
-    const poidsTotal = (() => {
-      let t = 0;
-      (FORMATS[recNom] || []).forEach(fmt => {
-        const pu = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
-        Object.values((qty[recNom] && qty[recNom][fmt.nom]) || {}).forEach(v => { t += v * pu; });
-      });
-      return t;
-    })();
+    const poidsTotal = getPoidsRecTotal(recNom);
     const affecte = getPoidsAffecte(recNom);
     const ok = Math.abs(poidsTotal - affecte) < 0.05;
 
@@ -2089,12 +2102,8 @@ function renderBacsContent(recNom) {
 
   const max = getBacMax(recNom);
 
-  // Calcul poids total de la recette
-  let poidsTotal = 0;
-  (FORMATS[recNom] || []).forEach(fmt => {
-    const pu = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
-    Object.values((qty[recNom] && qty[recNom][fmt.nom]) || {}).forEach(v => { poidsTotal += v * pu; });
-  });
+  // Calcul poids total de la recette (pâte + inclusions mélangées)
+  const poidsTotal = getPoidsRecTotal(recNom);
   const affecte = getPoidsAffecte(recNom);
   const restant = poidsTotal - affecte;
 
@@ -2201,7 +2210,9 @@ function buildBacCard(bac, idx, recNom, max) {
   });
 
   fmtsDispo.forEach(fmt => {
-    const poidsUnit = Math.round(fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12)) * 1000);
+    const poidsPateUnitDisplay = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    const inclRatioDisplay = ((RECETTES[recNom] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
+    const poidsUnit = Math.round(poidsPateUnitDisplay * (1 + inclRatioDisplay) * 1000); // avec inclusions
     const qte = bac.formats[fmt.nom] || 0;
     const row = document.createElement('div');
     row.className = 'bac-fmt-row';
@@ -2421,7 +2432,7 @@ function printFicheJournee() {
 
   // Stats globales
   let tp = 0, tk = 0;
-  orderedRecettes.forEach(r => { tp += getTotalPains(r); tk += getPoidsRec(r); });
+  orderedRecettes.forEach(r => { tp += getTotalPains(r); tk += getPoidsRecTotal(r); });
   h += `<div class="stats">
     <div class="stat"><div class="stat-val">${tp}</div><div class="stat-lbl">Pains</div></div>
     <div class="stat"><div class="stat-val">${tk.toFixed(1)} kg</div><div class="stat-lbl">Pâte crue</div></div>
