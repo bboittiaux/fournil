@@ -348,6 +348,51 @@ html, body {
 .pesee-card.adjusted .pesee-card-title { background:var(--red-bg); }
 .pesee-orig { font-size:10px; color:var(--tan-dark); text-decoration:line-through; margin-right:4px; }
 .pesee-new { font-weight:700; color:var(--red); }
+
+/* ── Modal ajustement % cuve ── */
+.ajust-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(54,40,26,0.6); z-index: 200;
+  align-items: flex-end; justify-content: center;
+}
+.ajust-modal-overlay.open { display: flex; }
+.ajust-modal-sheet {
+  background: var(--white); width: 100%; max-width: 900px;
+  border-radius: 16px 16px 0 0; padding: 24px 20px 36px;
+}
+.ajust-modal-title {
+  font-family: 'Amatic SC', cursive; font-size: 26px;
+  font-weight: 700; color: var(--dark); margin-bottom: 6px;
+}
+.ajust-modal-sub { font-size: 11px; color: var(--tan-dark); margin-bottom: 24px; }
+.ajust-modal-ctrl {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px; margin-bottom: 24px;
+}
+.ajust-modal-arrow {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 2.5px solid var(--tan); background: white;
+  font-size: 24px; color: var(--red);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-weight: 700; user-select: none;
+}
+.ajust-modal-arrow:active { background: var(--red-bg); }
+.ajust-modal-val {
+  font-family: 'Amatic SC', cursive; font-size: 52px;
+  font-weight: 700; color: var(--red); min-width: 120px;
+  text-align: center; line-height: 1;
+}
+.ajust-modal-btns { display: flex; gap: 10px; }
+.ajust-modal-cancel {
+  flex: 1; padding: 15px; background: var(--paper2);
+  border: none; border-radius: 8px; font-family: 'Raleway', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer; color: var(--dark);
+}
+.ajust-modal-confirm {
+  flex: 2; padding: 15px; background: var(--red);
+  border: none; border-radius: 8px; font-family: 'Raleway', sans-serif;
+  font-size: 13px; font-weight: 700; cursor: pointer; color: white;
+}
 </style>
 </head>
 <body>
@@ -497,6 +542,23 @@ html, body {
     <div class="bottom-bar">
       <button class="btn-secondary" id="btn-bacs-back">← Résumé</button>
       <button class="btn-primary" id="btn-bacs-print">Imprimer fiches →</button>
+    </div>
+  </div>
+
+  <!-- Modal ajustement % par cuve -->
+  <div class="modal-overlay ajust-modal-overlay" id="ajust-modal">
+    <div class="ajust-modal-sheet">
+      <div class="ajust-modal-title" id="ajust-modal-title">Ajuster la cuve</div>
+      <div class="ajust-modal-sub">Tous les ingrédients augmentent ou diminuent proportionnellement</div>
+      <div class="ajust-modal-ctrl">
+        <div class="ajust-modal-arrow" id="ajust-modal-minus">−</div>
+        <div class="ajust-modal-val" id="ajust-modal-val">+5%</div>
+        <div class="ajust-modal-arrow" id="ajust-modal-plus">+</div>
+      </div>
+      <div class="ajust-modal-btns">
+        <button class="ajust-modal-cancel" id="ajust-modal-cancel">Annuler</button>
+        <button class="ajust-modal-confirm" id="ajust-modal-confirm">Appliquer</button>
+      </div>
     </div>
   </div>
 
@@ -674,8 +736,8 @@ function getDeclinaisons(parent) {
 }
 
 function getFamille(parent) { return [parent, ...getDeclinaisons(parent)]; }
-function getParentesAvecDecli() { return getParentes().filter(r => getDeclinaisons(r).length > 0); }
-function getAutresSimples() { return getParentes().filter(r => getDeclinaisons(r).length === 0); }
+function getParentesAvecDecli() { return getParentes().filter(r => getDeclinaisons(r).length > 0).sort((a,b) => (RECETTES[a].ordre||99) - (RECETTES[b].ordre||99)); }
+function getAutresSimples() { return getParentes().filter(r => getDeclinaisons(r).length === 0).sort((a,b) => (RECETTES[a].ordre||99) - (RECETTES[b].ordre||99)); }
 
 function initQty() {
   qty = {};
@@ -1069,12 +1131,24 @@ function calcAllIng() {
   return r;
 }
 
-function calcLevains(allIng) {
+/**
+ * Calcule le détail des levains à préparer.
+ * ftype : 'j1' ou 'direct' — utilise ratioJ1/ratioDirect si configurés dans l'éditeur.
+ * Si absent, utilise le ratio de base.
+ */
+function calcLevains(allIng, ftype) {
   const r = {};
   Object.keys(LEVAINS).forEach(lev => {
     const n = allIng[lev] || 0; if (!n) return;
-    const c = LEVAINS[lev]; const s = c.reduce((x, i) => x + i.ratio, 0);
-    r[lev] = { total: n, compos: c.map(i => ({ ing: i.ing, qty: (i.ratio / s) * n })) };
+    const c = LEVAINS[lev];
+    // Choisir le bon ratio selon la fermentation
+    const getRatioFerm = (item) => {
+      if (ftype === 'j1' && item.ratioJ1 !== undefined) return item.ratioJ1;
+      if (ftype === 'direct' && item.ratioDirect !== undefined) return item.ratioDirect;
+      return item.ratio;
+    };
+    const s = c.reduce((x, i) => x + getRatioFerm(i), 0);
+    r[lev] = { total: n, compos: c.map(i => ({ ing: i.ing, qty: (getRatioFerm(i) / s) * n })) };
   });
   return r;
 }
@@ -1082,14 +1156,23 @@ function calcLevains(allIng) {
 /**
  * Calcule les ingrédients cumulés pour un sous-ensemble de recettes.
  * Applique les overrides de levain ET le multiplicateur cuveAjust.
+ * ftype : 'j1' ou 'direct' — utilisé pour choisir le bon ratio levain par fermentation.
  * Utilisé pour séparer les levains J+1 / Direct.
  */
-function calcAllIngForRecs(recsList) {
+function calcAllIngForRecs(recsList, ftype) {
   const r = {}; const add = (i, v) => { r[i] = (r[i] || 0) + v; };
 
   function getRatio(rec, item) {
+    // 1. Override manuel de la saisie (levainRatioOverride) — priorité max
     if (LEVAINS[item.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][item.ing] !== undefined) {
       return levainRatioOverride[rec][item.ing] / 1000;
+    }
+    // 2. Ratio par fermentation configuré dans l'éditeur levain
+    if (LEVAINS[item.ing] && ftype) {
+      const levCompo = LEVAINS[item.ing];
+      // On ne peut pas retrouver le composant individuel ici, on compare par ing
+      // Le ratio global du levain dans la recette (item.ratio) × le ratio de fermentation
+      // est géré dans calcLevains, pas ici. Ici on retourne juste item.ratio.
     }
     return item.ratio;
   }
@@ -1195,24 +1278,6 @@ function renderResume() {
     mainZone.appendChild(actZone);
     card.appendChild(mainZone);
 
-    // Panneau ajusteur (caché par défaut, visible si actif)
-    const panel = document.createElement('div');
-    panel.className = 'ajusteur-panel' + (ajActif ? '' : ' hidden');
-    panel.id = 'ajust-panel-' + ajSafe;
-    const curPct = aj ? aj.pct : 5;
-    panel.innerHTML = `
-      <div class="ajusteur-label">
-        Ajuster la cuve
-        <small>Tous les ingrédients proportionnellement</small>
-      </div>
-      <div class="pct-control">
-        <div class="pct-arrow" id="ajust-minus-${ajSafe}">−</div>
-        <div class="pct-val" id="ajust-val-${ajSafe}">${curPct >= 0 ? '+' : ''}${curPct}%</div>
-        <div class="pct-arrow" id="ajust-plus-${ajSafe}">+</div>
-      </div>`;
-    panel.querySelector('#ajust-minus-' + ajSafe).addEventListener('click', () => changeAjustPct(ajCle, -1));
-    panel.querySelector('#ajust-plus-' + ajSafe).addEventListener('click', () => changeAjustPct(ajCle, 1));
-    card.appendChild(panel);
     rd.appendChild(card);
   });
 
@@ -1330,10 +1395,10 @@ function renderResume() {
   const recsJ1_lev = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
   const recsDirect_lev = orderedRecettes.filter(r => fermentation[r] === 'direct');
 
-  function renderLevainGroup(recsList, label, colorClass) {
+  function renderLevainGroup(recsList, label, colorClass, ftype) {
     if (!recsList.length) return;
-    const ing = calcAllIngForRecs(recsList);
-    const levains = calcLevains(ing);
+    const ing = calcAllIngForRecs(recsList, ftype);
+    const levains = calcLevains(ing, ftype);
     if (!Object.keys(levains).length) return;
     ld.innerHTML += `<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--${colorClass === 'j1' ? 'dark' : 'red'});margin:10px 12px 6px">${label}</div>`;
     Object.entries(levains).forEach(([lev, data]) => {
@@ -1346,12 +1411,12 @@ function renderResume() {
 
   if (recsJ1_lev.length && recsDirect_lev.length) {
     // Les deux fermentations : afficher séparément
-    renderLevainGroup(recsJ1_lev, '🌙 Levain J+1 — à préparer ce soir', 'j1');
-    renderLevainGroup(recsDirect_lev, '☀️ Levain Direct — à préparer demain matin', 'direct');
+    renderLevainGroup(recsJ1_lev, '🌙 Levain J+1 — à utiliser ce soir', 'j1', 'j1');
+    renderLevainGroup(recsDirect_lev, '☀️ Levain Direct — à utiliser demain matin', 'direct', 'direct');
   } else {
-    // Une seule fermentation : afficher sans label
-    const allIng = calcAllIng();
-    const levains = calcLevains(allIng);
+    // Une seule fermentation : calcAllIngForRecs applique l'ajustement %
+    const allIng = calcAllIngForRecs(orderedRecettes);
+    const levains = calcLevains(allIng, orderedRecettes.length ? (fermentation[orderedRecettes[0]] || 'j1') : 'j1');
     if (!Object.keys(levains).length) {
       ld.innerHTML = '<div style="color:var(--tan-dark);font-size:13px;padding:4px 0;margin:0 10px">Aucun levain requis.</div>';
     } else {
@@ -1404,13 +1469,58 @@ function buildLevainCard(levName) {
   header.innerHTML = `<div class="editor-recette-name-wrap"><div class="editor-recette-name">${levName}</div><span class="editor-famille-tag" style="background:#E8F5EE;color:#2D6A47">levain</span></div><span class="editor-chevron">▾</span>`;
   const body = document.createElement('div'); body.className = 'editor-body';
   const lev = LEVAINS[levName];
-  let bHTML = '<div class="editor-section-title">Ingrédients & ratios</div>';
-  lev.forEach((item, idx) => { bHTML += `<div class="ing-edit-row"><input class="field-input wide" type="text" value="${item.ing}" data-levain="${levName}" data-idx="${idx}" data-field="ing"><input class="field-input" type="number" step="0.01" value="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratio"><span class="field-unit">ratio</span><button class="btn-del" data-del-lev="${levName}" data-del-idx="${idx}">✕</button></div>`; });
-  bHTML += `<button class="btn-add" data-add-lev="${levName}">+ Ajouter ingrédient</button><button class="btn-danger-full" data-del-levain="${levName}">Supprimer ce levain</button>`;
+  
+  // Ratios de base
+  let bHTML = '<div class="editor-section-title">Ingrédients & ratios de base</div>';
+  lev.forEach((item, idx) => {
+    bHTML += `<div class="ing-edit-row">
+      <input class="field-input wide" type="text" value="${item.ing}" data-levain="${levName}" data-idx="${idx}" data-field="ing">
+      <input class="field-input" type="number" step="0.01" value="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratio" title="Ratio de base">
+      <span class="field-unit">base</span>
+      <button class="btn-del" data-del-lev="${levName}" data-del-idx="${idx}">✕</button>
+    </div>`;
+  });
+  bHTML += `<button class="btn-add" data-add-lev="${levName}">+ Ajouter ingrédient</button>`;
+  
+  // Ratios par fermentation — un tableau clair
+  bHTML += `<div class="editor-section-title" style="margin-top:14px">Ratios par fermentation (optionnel)</div>`;
+  bHTML += `<div style="font-size:10px;color:var(--tan-dark);margin-bottom:8px">Si laissé vide, le ratio de base est utilisé. Permet d'avoir moins de levain en J+1 (fermentation longue) et plus en Direct.</div>`;
+  bHTML += `<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:6px;align-items:center;margin-bottom:4px">
+    <div style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase">Ingrédient</div>
+    <div style="font-size:9px;font-weight:700;color:var(--dark);text-transform:uppercase;text-align:right">🌙 J+1</div>
+    <div style="font-size:9px;font-weight:700;color:var(--red);text-transform:uppercase;text-align:right">☀️ Direct</div>
+  </div>`;
+  lev.forEach((item, idx) => {
+    bHTML += `<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:6px;align-items:center;margin-bottom:6px">
+      <div style="font-size:12px;font-weight:500;color:var(--dark)">${item.ing || '—'}</div>
+      <input class="field-input" type="number" step="0.01" value="${item.ratioJ1 !== undefined ? item.ratioJ1 : ''}" placeholder="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratioJ1" style="text-align:right">
+      <input class="field-input" type="number" step="0.01" value="${item.ratioDirect !== undefined ? item.ratioDirect : ''}" placeholder="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratioDirect" style="text-align:right">
+    </div>`;
+  });
+  
+  bHTML += `<button class="btn-danger-full" data-del-levain="${levName}">Supprimer ce levain</button>`;
   body.innerHTML = bHTML;
   
   header.addEventListener('click', () => { body.classList.toggle('open'); header.querySelector('.editor-chevron').textContent = body.classList.contains('open') ? '▴' : '▾'; });
-  body.querySelectorAll('[data-field]').forEach(inp => { inp.addEventListener('input', () => { const { levain, idx, field } = inp.dataset; LEVAINS[levain][parseInt(idx)][field] = field === 'ratio' ? parseFloat(inp.value) || 0 : inp.value; }); });
+  body.querySelectorAll('[data-field]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const { levain, idx, field } = inp.dataset;
+      const val = parseFloat(inp.value);
+      if (field === 'ing') {
+        LEVAINS[levain][parseInt(idx)].ing = inp.value;
+      } else if (field === 'ratio') {
+        LEVAINS[levain][parseInt(idx)].ratio = val || 0;
+      } else if (field === 'ratioJ1') {
+        if (inp.value === '' || isNaN(val)) delete LEVAINS[levain][parseInt(idx)].ratioJ1;
+        else LEVAINS[levain][parseInt(idx)].ratioJ1 = val;
+      } else if (field === 'ratioDirect') {
+        if (inp.value === '' || isNaN(val)) delete LEVAINS[levain][parseInt(idx)].ratioDirect;
+        else LEVAINS[levain][parseInt(idx)].ratioDirect = val;
+      }
+      // Rafraîchir le nom de l'ingrédient dans le tableau de fermentation
+      renderEditor(levain);
+    });
+  });
   body.querySelectorAll('[data-del-lev]').forEach(btn => { btn.addEventListener('click', () => { LEVAINS[btn.dataset.delLev].splice(parseInt(btn.dataset.delIdx), 1); renderEditor(btn.dataset.delLev); }); });
   body.querySelectorAll('[data-add-lev]').forEach(btn => { btn.addEventListener('click', () => { const l = btn.dataset.addLev; LEVAINS[l].push({ ing: '', ratio: 0 }); renderEditor(l); }); });
   body.querySelectorAll('[data-del-levain]').forEach(btn => { btn.addEventListener('click', () => { if (!confirm('Supprimer ce levain ?')) return; delete LEVAINS[btn.dataset.delLevain]; renderEditor(); }); });
@@ -1465,12 +1575,10 @@ function buildRecCard(rec) {
   bHTML += `<div class="field-row"><span class="field-label">Position dans la liste (1 = premier)</span><input class="field-input" type="number" step="1" value="${def.ordre || 99}" data-ordre="${rec}"></div>`;
 
   // Section façonnage — utilisée sur la fiche bac
-  const fac = def.faconnage || {};
-  bHTML += `<div class="editor-section-title">Façonnage (affiché sur la fiche bac)</div>`;
-  bHTML += `<div class="field-row"><span class="field-label">Détente</span><input class="field-input wide" type="text" value="${fac.detente || ''}" placeholder="Ex: 20 min couvert TA" data-fac-rec="${rec}" data-fac-field="detente"></div>`;
-  bHTML += `<div class="field-row"><span class="field-label">Gestes</span><input class="field-input wide" type="text" value="${fac.gestes || ''}" placeholder="Ex: Aplatir → rabats → bouler" data-fac-rec="${rec}" data-fac-field="gestes"></div>`;
-  bHTML += `<div class="field-row"><span class="field-label">Apprêt</span><input class="field-input wide" type="text" value="${fac.appret || ''}" placeholder="Ex: Couche lin · clé en haut" data-fac-rec="${rec}" data-fac-field="appret"></div>`;
-  bHTML += `<div class="field-row"><span class="field-label">Incisions</span><input class="field-input wide" type="text" value="${fac.incisions || ''}" placeholder="Ex: 1 grigne centrale, lame inclinée" data-fac-rec="${rec}" data-fac-field="incisions"></div>`;
+  // Champ notes — affiché sur la page bac et la fiche imprimée
+  // Utilise def.notes pour la valeur (rétro-compat : si anciennes données faconnage, on les ignore)
+  bHTML += `<div class="editor-section-title">Notes façonnage (affiché sur la fiche bac)</div>`;
+  bHTML += `<div style="padding:0 0 4px"><textarea class="field-input wide" rows="3" style="resize:vertical;height:72px;font-family:'Raleway',sans-serif;font-size:12px;line-height:1.5" placeholder="Ex: Détente 20 min · Aplatir → rabats → bouler → couche lin · 1 grigne centrale" data-notes-rec="${rec}">${def.notes || ''}</textarea></div>`;
 
   if (!estDecli) bHTML += `<button class="btn-new-decli" data-new-decli="${rec}">+ Créer une déclinaison de ${rec}</button>`;
   bHTML += `<button class="btn-danger-full" data-del-rec="${rec}">Supprimer${estDecli ? ' cette déclinaison' : ' cette recette'}</button>`;
@@ -1478,11 +1586,9 @@ function buildRecCard(rec) {
   
   header.addEventListener('click', () => { body.classList.toggle('open'); header.querySelector('.editor-chevron').textContent = body.classList.contains('open') ? '▴' : '▾'; });
   
-  body.querySelectorAll('[data-fac-rec]').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const r = inp.dataset.facRec, field = inp.dataset.facField;
-      if (!RECETTES[r].faconnage) RECETTES[r].faconnage = {};
-      RECETTES[r].faconnage[field] = inp.value;
+  body.querySelectorAll('[data-notes-rec]').forEach(ta => {
+    ta.addEventListener('input', () => {
+      RECETTES[ta.dataset.notesRec].notes = ta.value;
     });
   });
   body.querySelectorAll('[data-ordre]').forEach(inp => { 
@@ -1772,12 +1878,32 @@ document.getElementById('btn-save-fournee').addEventListener('click', async () =
 
 document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('modal-save').classList.remove('open'));
 
+// ── Modal ajustement % ──
+document.getElementById('ajust-modal-minus').addEventListener('click', () => _ajustModalUpdate(-1));
+document.getElementById('ajust-modal-plus').addEventListener('click', () => _ajustModalUpdate(1));
+document.getElementById('ajust-modal-cancel').addEventListener('click', () => {
+  document.getElementById('ajust-modal').classList.remove('open');
+  _ajustModalCle = null;
+});
+document.getElementById('ajust-modal-confirm').addEventListener('click', () => {
+  if (_ajustModalCle) {
+    cuveAjust[_ajustModalCle].enabled = true;
+    document.getElementById('ajust-modal').classList.remove('open');
+    _ajustModalCle = null;
+    renderResume();
+  }
+});
+
 // ── Fiche journée complète ──
 document.getElementById('exp-fiche-journee').addEventListener('click', printFicheJournee);
 
 document.getElementById('exp-pdf').addEventListener('click', exportPDF);
 document.getElementById('exp-csv').addEventListener('click', exportCSV);
 document.getElementById('exp-odoo').addEventListener('click', exportOdoo);
+
+// ── Exposer sur window les fonctions appelées via onclick inline dans le HTML ──
+// Nécessaire car le script est de type="module" (scope fermé par défaut)
+window.toggleBacsEnabled = toggleBacsEnabled;
 
 // ── Écran bacs ──
 document.getElementById('btn-go-bacs').addEventListener('click', () => {
@@ -1792,15 +1918,37 @@ document.getElementById('btn-bacs-print').addEventListener('click', printAllFich
 // Appelé depuis les cartes récap du résumé.
 // ══════════════════════════════════════════════════════════════════
 
-/** Active/désactive l'ajustement pour une cuve. Crée l'entrée si absente. */
+// ── Modal ajustement ──
+let _ajustModalCle = null; // recette en cours d'ajustement dans le modal
+
+/** Ouvre le modal d'ajustement pour une cuve.
+ *  Si déjà actif → désactive directement sans ouvrir le modal. */
 function toggleAjust(cle) {
   if (!cuveAjust[cle]) cuveAjust[cle] = { enabled: false, pct: 5 };
-  cuveAjust[cle].enabled = !cuveAjust[cle].enabled;
-  // Rafraîchir le résumé pour refléter le changement
-  renderResume();
+  if (cuveAjust[cle].enabled) {
+    // Désactiver directement
+    cuveAjust[cle].enabled = false;
+    renderResume();
+    return;
+  }
+  // Ouvrir le modal pour configurer le %
+  _ajustModalCle = cle;
+  const pct = cuveAjust[cle].pct || 5;
+  document.getElementById('ajust-modal-title').textContent = 'Ajuster — ' + cle;
+  document.getElementById('ajust-modal-val').textContent = (pct >= 0 ? '+' : '') + pct + '%';
+  document.getElementById('ajust-modal').classList.add('open');
 }
 
-/** Change le % d'ajustement de ±1 et met à jour l'affichage. */
+function _ajustModalUpdate(delta) {
+  if (!_ajustModalCle) return;
+  if (!cuveAjust[_ajustModalCle]) cuveAjust[_ajustModalCle] = { enabled: false, pct: 5 };
+  cuveAjust[_ajustModalCle].pct = Math.max(-50, Math.min(100, cuveAjust[_ajustModalCle].pct + delta));
+  const pct = cuveAjust[_ajustModalCle].pct;
+  document.getElementById('ajust-modal-val').textContent = (pct >= 0 ? '+' : '') + pct + '%';
+}
+
+/** Change le % d'ajustement (appelé depuis flèches dans l'ancien panneau inline — 
+ *  gardé pour compatibilité mais le modal est maintenant la voie principale) */
 function changeAjustPct(cle, delta) {
   if (!cuveAjust[cle]) cuveAjust[cle] = { enabled: true, pct: 5 };
   cuveAjust[cle].pct = Math.max(-50, Math.min(100, cuveAjust[cle].pct + delta));
@@ -1898,7 +2046,8 @@ function renderBacsScreen() {
   if (!nav) return;
   nav.innerHTML = '';
 
-  const recsList = [...selectedRecettes].filter(r => FORMATS[r] && FORMATS[r].length);
+  // Utiliser orderedRecettes pour avoir toutes les recettes dans le bon ordre
+  const recsList = orderedRecettes.length ? orderedRecettes.filter(r => FORMATS[r] && FORMATS[r].length) : [...selectedRecettes].filter(r => FORMATS[r] && FORMATS[r].length);
   if (!recsList.length) return;
 
   // Sélectionner la première recette si aucune n'est active
@@ -2082,18 +2231,15 @@ function buildBacCard(bac, idx, recNom, max) {
     : `✓ ${poids.toFixed(2)} kg — dans les limites`;
   card.appendChild(st);
 
-  // Infos façonnage de la recette (configurables dans l'éditeur)
-  const fac = (RECETTES[recNom] || {}).faconnage || {};
-  if (fac.detente || fac.gestes || fac.appret || fac.incisions) {
-    const facDiv = document.createElement('div');
-    facDiv.style.cssText = 'border-top:1px solid var(--paper2);padding:8px 10px;background:var(--paper);';
-    facDiv.innerHTML = `
-      <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--tan-dark);margin-bottom:6px">Façonnage</div>
-      ${fac.detente ? `<div style="display:flex;gap:8px;margin-bottom:4px"><span style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;width:58px;flex-shrink:0">Détente</span><span style="font-size:11px;color:var(--dark)">${fac.detente}</span></div>` : ''}
-      ${fac.gestes ? `<div style="display:flex;gap:8px;margin-bottom:4px"><span style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;width:58px;flex-shrink:0">Gestes</span><span style="font-size:11px;color:var(--dark);font-family:monospace;background:var(--paper2);padding:2px 5px;border-radius:3px">${fac.gestes}</span></div>` : ''}
-      ${fac.appret ? `<div style="display:flex;gap:8px;margin-bottom:4px"><span style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;width:58px;flex-shrink:0">Apprêt</span><span style="font-size:11px;color:var(--dark)">${fac.appret}</span></div>` : ''}
-      ${fac.incisions ? `<div style="display:flex;gap:8px"><span style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;width:58px;flex-shrink:0">Incisions</span><span style="font-size:11px;color:var(--dark)">${fac.incisions}</span></div>` : ''}`;
-    card.appendChild(facDiv);
+  // Notes de façonnage (configurées dans l'éditeur recette)
+  const notes = (RECETTES[recNom] || {}).notes || '';
+  if (notes) {
+    const notesDiv = document.createElement('div');
+    notesDiv.style.cssText = 'border-top:1px solid var(--paper2);padding:8px 10px;background:var(--paper);';
+    notesDiv.innerHTML = `
+      <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--tan-dark);margin-bottom:5px">Notes</div>
+      <div style="font-size:11px;color:var(--dark);line-height:1.6;white-space:pre-wrap">${notes}</div>`;
+    card.appendChild(notesDiv);
   }
 
   // Supprimer ce bac
@@ -2119,7 +2265,7 @@ function printFicheBac(recNom, idx) {
   const fv = fermentation[recNom] || 'j1';
   const fermLabel = fv === 'j1' ? '🌙 J+1' : '☀️ Direct';
   const date = new Date().toLocaleDateString('fr-FR');
-  const fac = (RECETTES[recNom] || {}).faconnage || {};
+  const notes = (RECETTES[recNom] || {}).notes || '';
   let rows = '', totalPains = 0;
   Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
     if (!qte) return;
@@ -2158,10 +2304,7 @@ function printFicheBac(recNom, idx) {
   <tr class="tot"><td>Total</td><td style="text-align:center;font-size:18px">${totalPains}</td><td style="text-align:right">${poids.toFixed(3)} kg</td></tr></table>
   <div class="sec">Façonnage</div>
   <div class="fac">
-    ${fac.detente ? `<div class="row"><div class="lbl">Détente</div><div class="val">${fac.detente}</div></div>` : ''}
-    ${fac.gestes ? `<div class="row"><div class="lbl">Gestes</div><div class="val mono">${fac.gestes}</div></div>` : ''}
-    ${fac.appret ? `<div class="row"><div class="lbl">Apprêt</div><div class="val">${fac.appret}</div></div>` : ''}
-    ${fac.incisions ? `<div class="row"><div class="lbl">Incisions</div><div class="val">${fac.incisions}</div></div>` : '<div class="row"><div class="lbl">Incisions</div><div class="val"><textarea rows="2" placeholder="Ex: 1 grigne centrale…"></textarea></div></div>'}
+    ${notes ? `<div class="row"><div class="lbl">Notes</div><div class="val" style="white-space:pre-wrap">${notes}</div></div>` : '<div class="row"><div class="lbl">Notes</div><div class="val"><textarea rows="3" placeholder="Façonnage, incisions…"></textarea></div></div>'}
   </div>
   <footer>Le Fournil des Enfariné.e.s · Fournée du ${date}</footer>
   </body></html>`;
@@ -2171,9 +2314,69 @@ function printFicheBac(recNom, idx) {
 }
 
 function printAllFiches() {
+  // Générer une seule page avec toutes les fiches (évite le blocage multi-popup)
+  const date = new Date().toLocaleDateString('fr-FR');
+  let allHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fiches bacs — ${date}</title>
+  <style>
+    body{font-family:Georgia,serif;font-size:12px;color:#36281A;padding:0;margin:0}
+    .fiche{max-width:580px;margin:0 auto;padding:20px;page-break-after:always}
+    .fiche:last-child{page-break-after:auto}
+    h1{font-size:30px;margin:0}h2{font-size:16px;color:#C73600;margin:3px 0 0}
+    .tags{display:flex;gap:6px;margin:8px 0}.tag{padding:3px 9px;border-radius:4px;font-size:10px;font-weight:700}
+    .t1{background:#36281A;color:#EFEDD8}.t2{background:#E0D8C0;color:#36281A}.t3{background:#FAF0EE;color:#C73600}
+    table{width:100%;border-collapse:collapse;margin:8px 0}
+    th{background:#EFEDD8;padding:5px 7px;font-size:10px;font-weight:700;text-align:left}
+    th:last-child{text-align:right}
+    td{padding:6px 7px;border-top:1px solid #E0D8C0;font-size:12px}
+    td.r{text-align:right;font-weight:700}td.c{text-align:center;font-size:18px;font-weight:700}
+    .tot td{background:#EFEDD8;font-weight:700;border-top:2px solid #36281A}
+    .notes{background:#FAF8F0;border:1px solid #E0D8C0;border-radius:6px;padding:9px 11px;margin-top:8px;font-size:11px;line-height:1.7;white-space:pre-wrap}
+    .sep{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:9px;border-bottom:2px solid #36281A;margin-bottom:9px}
+    .kg-block{text-align:right}.kg-val{font-size:26px;font-weight:700}.kg-lbl{font-size:9px;color:#AE7D66;font-weight:600;text-transform:uppercase}
+    footer{font-size:9px;color:#AE7D66;text-align:center;border-top:1px solid #E0D8C0;padding-top:7px;margin-top:12px}
+    @media print{body{padding:0}.fiche{padding:12px}}
+  </style></head><body>`;
+
+  let hasAny = false;
   [...selectedRecettes].forEach(rec => {
-    (bacs[rec] || []).forEach((_, i) => printFicheBac(rec, i));
+    (bacs[rec] || []).forEach((bac, idx) => {
+      const poids = getBacPoids(bac, rec);
+      const fv = (fermentation[rec] || 'j1') === 'j1' ? '🌙 J+1' : '☀️ Direct';
+      const notes = (RECETTES[rec] || {}).notes || '';
+      let rows = '', totalPains = 0;
+      Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
+        if (!qte) return;
+        const fmt = (FORMATS[rec] || []).find(f => f.nom === fmtNom);
+        const pu = fmt ? fmt.poidsCuit / (1 - ((RECETTES[rec] || {}).perte || 0.12)) : 0;
+        rows += `<tr><td>${fmtNom}</td><td class="c">${qte}</td><td class="r">${(qte*pu).toFixed(3)} kg</td></tr>`;
+        totalPains += qte;
+      });
+      allHTML += `<div class="fiche">
+        <div class="sep">
+          <div><h1>${bac.prio ? '★ ' : ''}Bac ${idx + 1}</h1><h2>${bac.label}</h2></div>
+          <div class="kg-block"><div class="kg-val">${poids.toFixed(3)} kg</div><div class="kg-lbl">pâte crue</div></div>
+        </div>
+        <div class="tags">
+          <span class="tag t1">${rec}</span>
+          <span class="tag t2">${fv}</span>
+          ${bac.prio ? '<span class="tag t3">★ Sortir en premier</span>' : ''}
+        </div>
+        <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#AE7D66;margin:10px 0 4px;font-weight:700">Contenu — uniquement ${rec}</div>
+        <table><tr><th>Format</th><th style="text-align:center">Nb</th><th style="text-align:right">Poids cru</th></tr>
+        ${rows}
+        <tr class="tot"><td>Total</td><td class="c">${totalPains}</td><td class="r">${poids.toFixed(3)} kg</td></tr></table>
+        ${notes ? `<div class="notes">${notes}</div>` : ''}
+        <footer>Le Fournil des Enfariné.e.s · ${date}</footer>
+      </div>`;
+      hasAny = true;
+    });
   });
+
+  if (!hasAny) { showToast('Aucun bac défini — configure les bacs d\'abord'); return; }
+  allHTML += '</body></html>';
+  const w = window.open('', '_blank');
+  w.document.write(allHTML); w.document.close(); w.focus();
+  setTimeout(() => w.print(), 500);
 }
 
 // Persister bacs + cuveAjust dans les fournées sauvegardées
@@ -2281,7 +2484,7 @@ function printFicheJournee() {
   // Levains
   function levainHTML(recsList, label) {
     const ing = calcAllIngForRecs(recsList);
-    const levains = calcLevains(ing);
+    const levains = calcLevains(ing, ftype);
     if (!Object.keys(levains).length) return '';
     let out = `<h3>${label}</h3>`;
     Object.entries(levains).forEach(([lev, data]) => {
@@ -2314,7 +2517,7 @@ function printFicheJournee() {
       hasBacs = true;
       const poids = getBacPoids(bac, rec);
       const fv = (fermentation[rec] || 'j1') === 'j1' ? '🌙 J+1' : '☀️ Direct';
-      const fac = (RECETTES[rec] || {}).faconnage || {};
+
       h += `<div class="bac ${bac.prio ? 'prio' : ''}">
         <div class="bac-title ${bac.prio ? 'prio' : ''}">${bac.prio ? '★ ' : ''}${bac.label}</div>
         <div class="bac-sub">${rec} · ${fv} · ${poids.toFixed(3)} kg pâte crue</div>
@@ -2326,13 +2529,9 @@ function printFicheJournee() {
         h += `<tr><td>${fmtNom}</td><td style="text-align:center">${qte}</td><td class="r">${(qte*pu).toFixed(3)} kg</td></tr>`;
       });
       h += `<tr style="background:#EFEDD8;font-weight:700"><td>Total</td><td style="text-align:center">${Object.values(bac.formats||{}).reduce((a,b)=>a+b,0)}</td><td class="r">${poids.toFixed(3)} kg</td></tr></table>`;
-      if (fac.detente || fac.gestes || fac.appret || fac.incisions) {
-        h += `<div class="fac">
-          ${fac.detente ? `<span class="fac-lbl">Détente</span><span>${fac.detente}</span>` : ''}
-          ${fac.gestes ? `<span class="fac-lbl">Gestes</span><span style="font-family:monospace">${fac.gestes}</span>` : ''}
-          ${fac.appret ? `<span class="fac-lbl">Apprêt</span><span>${fac.appret}</span>` : ''}
-          ${fac.incisions ? `<span class="fac-lbl">Incisions</span><span>${fac.incisions}</span>` : ''}
-        </div>`;
+      const notes_bac = (RECETTES[rec] || {}).notes || '';
+      if (notes_bac) {
+        h += `<div style="border-top:1px solid #E0D8C0;padding-top:6px;margin-top:4px;font-size:11px;color:#36281A;white-space:pre-wrap">${notes_bac}</div>`;
       }
       h += '</div>';
     });
