@@ -782,6 +782,20 @@ function saveSessionQty() {
   fbSet('session/levainOverride', levainRatioOverride).catch(() => {});
 }
 
+/** Sauvegarde l'écran actif + état de navigation pour restauration au rechargement. */
+function saveSessionScreen(screenId) {
+  const state = {
+    screen: screenId,
+    step: currentStep,
+    selected: [...selectedRecettes],
+    ordered: orderedRecettes,
+    bacRecActive,
+    bacs,
+    cuveAjust,
+  };
+  fbSet('session/nav', state).catch(() => {});
+}
+
 // ── 5. INITIALISATION ──
 async function init() {
   try {
@@ -804,6 +818,34 @@ async function init() {
   renderSelection();
   updateProgress();
   fbListen('fournees', renderSavedList);
+
+  // Restaurer l'écran actif et les données si rechargement de page
+  try {
+    const nav = await fbGet('session/nav');
+    if (nav && nav.screen && nav.selected && nav.selected.length) {
+      selectedRecettes = new Set(nav.selected);
+      orderedRecettes = nav.ordered || [...nav.selected];
+      currentStep = nav.step || 0;
+      if (nav.bacs) bacs = nav.bacs;
+      if (nav.cuveAjust) cuveAjust = nav.cuveAjust;
+      if (nav.bacRecActive) bacRecActive = nav.bacRecActive;
+      updateSelUI();
+      // Aller à l'écran sauvegardé
+      const validScreens = ['screen-resume', 'screen-saisie', 'screen-bacs'];
+      if (validScreens.includes(nav.screen)) {
+        if (nav.screen === 'screen-resume') {
+          renderResume();
+          goTo('screen-resume');
+        } else if (nav.screen === 'screen-saisie' && orderedRecettes.length) {
+          renderStep();
+          goTo('screen-saisie');
+        } else if (nav.screen === 'screen-bacs') {
+          renderBacsScreen();
+          goTo('screen-bacs');
+        }
+      }
+    }
+  } catch(e) { /* silencieux */ }
 }
 
 // ── 6. RENDU SÉLECTION ──
@@ -879,6 +921,7 @@ function goTo(id) {
   document.getElementById(id).classList.add('active');
   updateProgress();
   if (id === 'screen-recettes') renderEditor();
+  saveSessionScreen(id); // Persister l'écran actif pour restauration au rechargement
 }
 
 function updateProgress() {
@@ -1351,11 +1394,16 @@ function renderResume() {
       });
       membres.forEach(rec => {
         const p = getPoidsRec(rec); const incl = RECETTES[rec].inclusions || [];
+        // Chaque membre a son propre bandeau cliquable vers sa tab bacs
+        const pTot = getPoidsRecTotal(rec);
+        h += `<div class="ferm-step" data-goto-bac="${rec}" style="cursor:pointer" title="Voir les bacs ${rec} →">
+          <div class="ferm-step-num ${ftype}">↳</div>
+          <div>
+            <div class="ferm-step-main">${rec} — ${pTot.toFixed(3)} kg <span style="font-size:10px;opacity:0.65">↗ bacs</span></div>`;
         if (incl.length) {
-          h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">↳</div><div><div class="ferm-step-main">Part ${rec} — ${p.toFixed(3)} kg</div>`;
           incl.forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; h += `<div class="ferm-step-detail">+ ${inc.ing} : ${q.toFixed(3)} kg</div>`; });
-          h += `</div></div>`;
         }
+        h += `</div></div>`;
       });
       if (ftype === 'j1') {
         h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">2</div><div><div class="ferm-step-main">Mise en bac · frigo</div><div class="ferm-step-detail">Pointage au froid jusqu'au lendemain</div></div></div>`;
@@ -1374,7 +1422,7 @@ function renderResume() {
       const pAdj = p * multRec;
       const isAdjRec = Math.abs(multRec - 1) > 0.001;
       const adjLabelRec = isAdjRec ? ` <span class="adj-badge">${multRec > 1 ? '+' : ''}${Math.round((multRec-1)*100)}%</span>` : '';
-      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}"><div class="ferm-bloc-title">${rec}${adjLabelRec}</div><div class="ferm-bloc-sub">${isAdjRec ? '<span style="text-decoration:line-through;opacity:0.6">' + p.toFixed(3) + '</span> ' : ''}${pAdj.toFixed(3)} kg pâte</div></div><div class="ferm-bloc-steps">`;
+      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}" data-goto-bac="${rec}" style="cursor:pointer" title="Voir les bacs →"><div class="ferm-bloc-title">${rec}${adjLabelRec} <span style="font-size:11px;opacity:0.75">↗ bacs</span></div><div class="ferm-bloc-sub">${isAdjRec ? '<span style="text-decoration:line-through;opacity:0.6">' + p.toFixed(3) + '</span> ' : ''}${pAdj.toFixed(3)} kg pâte</div></div><div class="ferm-bloc-steps">`;
       h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${pAdj.toFixed(3)} kg</div></div></div>`;
       ings.forEach(i => {
         const qO = (i.ratio / dn) * p;
@@ -1506,7 +1554,7 @@ function buildLevainCard(levName) {
   </div>`;
   lev.forEach((item, idx) => {
     bHTML += `<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:6px;align-items:center;margin-bottom:6px">
-      <div style="font-size:12px;font-weight:500;color:var(--dark)">${item.ing || '—'}</div>
+      <div class="lev-ing-label" data-lev-idx="${idx}" style="font-size:12px;font-weight:500;color:var(--dark)">${item.ing || '—'}</div>
       <input class="field-input" type="number" step="0.01" value="${item.ratioJ1 !== undefined ? item.ratioJ1 : ''}" placeholder="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratioJ1" style="text-align:right">
       <input class="field-input" type="number" step="0.01" value="${item.ratioDirect !== undefined ? item.ratioDirect : ''}" placeholder="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratioDirect" style="text-align:right">
     </div>`;
@@ -1522,8 +1570,17 @@ function buildLevainCard(levName) {
       const val = parseFloat(inp.value);
       if (field === 'ing') {
         LEVAINS[levain][parseInt(idx)].ing = inp.value;
+        // Mettre à jour les labels du tableau de fermentation sans re-render complet
+        body.querySelectorAll(`[data-field="ratioJ1"][data-idx="${idx}"], [data-field="ratioDirect"][data-idx="${idx}"]`).forEach(sibling => {
+          const labelEl = sibling.closest('div')?.previousElementSibling;
+          // On ne touche pas au focus
+        });
       } else if (field === 'ratio') {
         LEVAINS[levain][parseInt(idx)].ratio = val || 0;
+        // Mettre à jour le placeholder des champs J+1/Direct
+        body.querySelectorAll(`[data-field="ratioJ1"][data-idx="${idx}"], [data-field="ratioDirect"][data-idx="${idx}"]`).forEach(sibling => {
+          sibling.placeholder = inp.value || '0';
+        });
       } else if (field === 'ratioJ1') {
         if (inp.value === '' || isNaN(val)) delete LEVAINS[levain][parseInt(idx)].ratioJ1;
         else LEVAINS[levain][parseInt(idx)].ratioJ1 = val;
@@ -1531,8 +1588,16 @@ function buildLevainCard(levName) {
         if (inp.value === '' || isNaN(val)) delete LEVAINS[levain][parseInt(idx)].ratioDirect;
         else LEVAINS[levain][parseInt(idx)].ratioDirect = val;
       }
-      // Rafraîchir le nom de l'ingrédient dans le tableau de fermentation
-      renderEditor(levain);
+      // NE PAS appeler renderEditor ici — ça détruit le focus et rend les champs inéditables
+    });
+    // Mettre à jour le nom d'ingrédient dans le tableau fermentation sans re-render
+    inp.addEventListener('blur', () => {
+      if (inp.dataset.field === 'ing') {
+        // Mettre à jour tous les labels du nom dans le tableau (sans re-render)
+        body.querySelectorAll('.lev-ing-label[data-lev-idx="' + inp.dataset.idx + '"]').forEach(el => {
+          el.textContent = inp.value || '—';
+        });
+      }
     });
   });
   body.querySelectorAll('[data-del-lev]').forEach(btn => { btn.addEventListener('click', () => { LEVAINS[btn.dataset.delLev].splice(parseInt(btn.dataset.delIdx), 1); renderEditor(btn.dataset.delLev); }); });
@@ -1651,68 +1716,129 @@ function dl(c, n) { const b = new Blob(['\uFEFF' + c], { type: 'text/csv;charset
 function today() { return new Date().toISOString().slice(0, 10); }
 
 function exportPDF() {
-  const allIng = calcAllIng(); const levains = calcLevains(allIng); const d = new Date().toLocaleDateString('fr-FR');
-  let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournée ${d}</title><style>body{font-family:Georgia,serif;font-size:12px;color:#36281A;padding:20px;max-width:700px;margin:0 auto}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;margin:18px 0 6px;border-bottom:1px solid #D1B7A7;padding-bottom:4px}h3{font-size:13px;margin:12px 0 4px;color:#AE7D66}table{width:100%;border-collapse:collapse;margin-bottom:8px}td,th{padding:5px 8px;border-bottom:1px solid #eee;text-align:left}th{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#AE7D66}td:last-child,th:last-child{text-align:right}@media print{body{padding:0}}</style></head><body><h1>Le Fournil des Enfariné.e.s — Fournée du ${d}</h1>`;
-  h += `<h2>Pains</h2><table><tr><th>Recette</th><th>Format</th><th>Boutique</th><th>Marché</th><th>Commandes</th><th>Autres</th><th>Total</th><th>Pâte crue</th></tr>`;
-  orderedRecettes.forEach(rec => { (FORMATS[rec] || []).forEach(fmt => { const pc = poidsCru(rec, fmt); const cols = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0); const tot = cols.reduce((a, b) => a + b, 0); if (tot > 0) h += `<tr><td>${rec}</td><td>${fmt.nom}</td>${cols.map(v => `<td>${v}</td>`).join('')}<td><strong>${tot}</strong></td><td>${(tot * pc).toFixed(3)} kg</td></tr>`; }); });
-  h += `</table><h2>Pesées</h2>`;
-  
-  function renderPeseePDF(recsList, ftype) {
+  const d = new Date().toLocaleDateString('fr-FR');
+  let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournée ${d}</title><style>
+    *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    html,body{margin:0;padding:0}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:8px;color:#36281A;padding:6mm}
+    .top{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #36281A;margin-bottom:4px;padding-bottom:3px}
+    h1{font-size:13px;margin:0;font-family:Georgia,serif}
+    .date{font-size:8px;color:#AE7D66}
+    .wrap{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+    .col{}
+    h2{font-size:9px;margin:6px 0 2px;padding:2px 4px;background:#36281A;color:white;letter-spacing:0.5px;text-transform:uppercase}
+    h2.j1{background:#36281A}
+    h2.direct{background:#C73600}
+    h2.lev{background:#2D6A47}
+    h3{font-size:8px;margin:4px 0 1px;color:#36281A;font-weight:700;border-bottom:1px solid #E0D8C0;padding-bottom:1px}
+    table{width:100%;border-collapse:collapse;margin-bottom:3px}
+    td,th{padding:1.5px 4px;text-align:left;font-size:7.5px;border-bottom:1px solid #E0D8C0}
+    th{background:#EFEDD8;font-size:7px;text-transform:uppercase;letter-spacing:0.3px;color:#AE7D66;font-weight:700}
+    td:last-child,th:last-child{text-align:right;font-weight:700}
+    .tot td{background:#EFEDD8;font-weight:700;border-top:1px solid #36281A}
+    .adj{color:#C73600;font-size:7px}
+    @media print{
+      @page{size:A4;margin:8mm}
+      body{padding:0}
+      .no-break{break-inside:avoid}
+    }
+  </style></head><body>
+  <div class="top">
+    <h1>Le Fournil des Enfariné.e.s — Fournée du ${d}</h1>
+    <span class="date">${orderedRecettes.length} recette${orderedRecettes.length>1?'s':''} · ${orderedRecettes.map(r=>(fermentation[r]||'j1')==='j1'?'🌙':'☀️').join(' ')}</span>
+  </div>
+  <div class="wrap">`;
+
+  // ── Colonne gauche : pains par recette ──
+  h += `<div class="col"><h2>Pains à produire</h2>`;
+  // Tableau compact des pains
+  h += `<table><tr><th>Recette</th><th>Format</th>${CANAUX.map(c=>`<th>${c.substring(0,4)}</th>`).join('')}<th>Tot</th></tr>`;
+  let totalPains=0, totalKg=0;
+  orderedRecettes.forEach(rec => {
+    (FORMATS[rec]||[]).forEach(fmt => {
+      const pc = poidsCru(rec, fmt);
+      const cols = CANAUX.map(c => qty[rec]&&qty[rec][fmt.nom] ? qty[rec][fmt.nom][c]||0 : 0);
+      const tot = cols.reduce((a,b)=>a+b,0);
+      if (tot>0) {
+        h += `<tr><td>${rec}</td><td>${fmt.nom}</td>${cols.map(v=>`<td>${v||''}</td>`).join('')}<td>${tot}</td></tr>`;
+        totalPains+=tot; totalKg+=tot*pc;
+      }
+    });
+  });
+  h += `<tr class="tot"><td colspan="${2+CANAUX.length}">Total</td><td>${totalPains}</td></tr></table>`;
+  h += `<div style="font-size:7px;color:#AE7D66;margin-bottom:4px">${totalKg.toFixed(2)} kg pâte crue estimée</div>`;
+
+  // ── Levains ──
+  const recsJ1 = orderedRecettes.filter(r=>(fermentation[r]||'j1')==='j1');
+  const recsDirect = orderedRecettes.filter(r=>fermentation[r]==='direct');
+
+  function levSection(recsList, ftype, label) {
+    const ing = calcAllIngForRecs(recsList, ftype);
+    const levs = calcLevains(ing, ftype);
+    if (!Object.keys(levs).length) return '';
+    let out = `<h2 class="lev">${label}</h2>`;
+    Object.entries(levs).forEach(([lev, data]) => {
+      out += `<div class="no-break"><h3>${lev} — ${data.total.toFixed(3)} kg</h3><table>`;
+      data.compos.forEach(c => { out += `<tr><td>${c.ing}</td><td>${c.qty.toFixed(3)} kg</td></tr>`; });
+      out += `</table></div>`;
+    });
+    return out;
+  }
+
+  if (recsJ1.length && recsDirect.length) {
+    h += levSection(recsJ1, 'j1', '🌙 Levain J+1 — ce soir');
+    h += levSection(recsDirect, 'direct', '☀️ Levain Direct — demain');
+  } else {
+    h += levSection(orderedRecettes, fermentation[orderedRecettes[0]]||'j1', '🌿 Levains');
+  }
+
+  h += `</div>`; // fin col gauche
+
+  // ── Colonne droite : pesées ──
+  h += `<div class="col">`;
+
+  function peseeSection(recsList, ftype, label) {
+    if (!recsList.length) return;
+    h += `<h2 class="${ftype}">${label}</h2>`;
     const cuvesFaites = new Set();
     getParentesAvecDecli().forEach(parent => {
-      const membres = getFamille(parent).filter(r => recsList.includes(r));
+      const membres = getFamille(parent).filter(r=>recsList.includes(r));
       if (!membres.length) return;
       cuvesFaites.add(parent);
-      const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
+      const pt = membres.reduce((s,r)=>s+getPoidsRec(r),0);
+      const mult = (()=>{ for(const r of membres){ const aj=cuveAjust[r]; if(aj&&aj.enabled) return 1+aj.pct/100; } return 1; })();
+      const ptAdj = pt*mult;
       const bi = RECETTES[parent].ingredients;
-      const refRec = membres.includes(parent) ? parent : membres[0];
-      const dn = bi.reduce((s, i) => {
-          let ratio = i.ratio;
-          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) ratio = levainRatioOverride[refRec][i.ing] / 1000;
-          return s + ratio;
-      }, 0);
-      h += `<h3>Cuve ${parent} — ${pt.toFixed(3)} kg</h3><table>`;
-      bi.forEach(i => {
-          let ratio = i.ratio;
-          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) ratio = levainRatioOverride[refRec][i.ing] / 1000;
-          h += `<tr><td>${i.ing}</td><td>${((ratio / dn) * pt).toFixed(3)} kg</td></tr>`; 
-      });
-      h += `</table>`;
-      membres.forEach(rec => {
-        const p = getPoidsRec(rec);
-        if ((RECETTES[rec].inclusions || []).length) {
-          h += `<h3>↳ Part ${rec} — ${p.toFixed(3)} kg</h3><table>`;
-          RECETTES[rec].inclusions.forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; h += `<tr><td>+ ${inc.ing}</td><td>${q.toFixed(3)} kg</td></tr>`; });
-          h += `</table>`;
-        }
-      });
+      const refRec = membres.includes(parent)?parent:membres[0];
+      const dn = bi.reduce((s,i)=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[refRec]&&levainRatioOverride[refRec][i.ing]!==undefined) r=levainRatioOverride[refRec][i.ing]/1000; return s+r; },0);
+      const adjTxt = Math.abs(mult-1)>0.001 ? ` <span class="adj">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
+      h += `<div class="no-break"><h3>Cuve ${parent} — ${ptAdj.toFixed(3)} kg${adjTxt}</h3><table>`;
+      bi.forEach(i=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[refRec]&&levainRatioOverride[refRec][i.ing]!==undefined) r=levainRatioOverride[refRec][i.ing]/1000; h+=`<tr><td>${i.ing}</td><td>${((r/dn)*ptAdj).toFixed(3)} kg</td></tr>`; });
+      h+=`</table>`;
+      membres.forEach(rec=>{ const p=getPoidsRec(rec); const incl=RECETTES[rec].inclusions||[]; if(incl.length){ h+=`<h3 style="margin-top:2px">↳ ${rec} — ${getPoidsRecTotal(rec).toFixed(3)} kg</h3><table>`; incl.forEach(inc=>{ const q=(p/(1+inc.ratio))*inc.ratio; h+=`<tr><td>+ ${inc.ing}</td><td>${q.toFixed(3)} kg</td></tr>`; }); h+=`</table>`; } });
+      h+=`</div>`;
     });
-    
-    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
-      const p = getPoidsRec(rec); if (!p) return;
-      const ings = RECETTES[rec].ingredients || (RECETTES[getParent(rec)] || {}).ingredients || [];
-      const dn = ings.reduce((s, i) => {
-          let ratio = i.ratio;
-          if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) ratio = levainRatioOverride[rec][i.ing] / 1000;
-          return s + ratio;
-      }, 0);
-      h += `<h3>${rec} — ${p.toFixed(3)} kg</h3><table>`;
-      ings.forEach(i => {
-          let ratio = i.ratio;
-          if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) ratio = levainRatioOverride[rec][i.ing] / 1000;
-          h += `<tr><td>${i.ing}</td><td>${((ratio / dn) * p).toFixed(3)} kg</td></tr>`; 
-      });
-      h += `</table>`;
+    recsList.filter(rec=>!cuvesFaites.has(getParent(rec))&&!cuvesFaites.has(rec)).forEach(rec=>{
+      const p=getPoidsRec(rec); if(!p) return;
+      const ings=RECETTES[rec].ingredients||(RECETTES[getParent(rec)]||{}).ingredients||[];
+      const mult=(()=>{ const aj=cuveAjust[rec]; return aj&&aj.enabled?1+aj.pct/100:1; })();
+      const pAdj=p*mult;
+      const dn=ings.reduce((s,i)=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[rec]&&levainRatioOverride[rec][i.ing]!==undefined) r=levainRatioOverride[rec][i.ing]/1000; return s+r; },0);
+      const adjTxt = Math.abs(mult-1)>0.001 ? ` <span class="adj">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
+      h+=`<div class="no-break"><h3>${rec} — ${pAdj.toFixed(3)} kg${adjTxt}</h3><table>`;
+      ings.forEach(i=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[rec]&&levainRatioOverride[rec][i.ing]!==undefined) r=levainRatioOverride[rec][i.ing]/1000; h+=`<tr><td>${i.ing}</td><td>${((r/dn)*pAdj).toFixed(3)} kg</td></tr>`; });
+      h+=`</table></div>`;
     });
   }
 
-  const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
-  const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
-  if (recsJ1.length) { h += `<h2 style="margin-top:24px">🌙 Ce soir — J+1</h2>`; renderPeseePDF(recsJ1, 'j1'); }
-  if (recsDirect.length) { h += `<h2 style="margin-top:24px">☀️ Demain matin — Direct</h2>`; renderPeseePDF(recsDirect, 'direct'); }
+  peseeSection(recsJ1, 'j1', '🌙 Pesées J+1 — ce soir');
+  peseeSection(recsDirect, 'direct', '☀️ Pesées Direct — demain');
+  h += `</div></div>`; // fin col droite + wrap
 
-  if (Object.keys(levains).length) { h += `<h2>Levains</h2>`; Object.entries(levains).forEach(([lev, data]) => { h += `<h3>${lev} — ${data.total.toFixed(3)} kg</h3><table>`; data.compos.forEach(c => { h += `<tr><td>${c.ing}</td><td>${c.qty.toFixed(3)} kg</td></tr>`; }); h += `</table>`; }); }
-  h += `</body></html>`; const w = window.open('', '_blank'); w.document.write(h); w.document.close(); w.focus(); setTimeout(() => w.print(), 400);
+  h += `</body></html>`;
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(h); w.document.close(); w.focus(); setTimeout(() => w.print(), 400); }
+  else { const blob = new Blob([h], { type: 'text/html;charset=utf-8' }); window.location.href = URL.createObjectURL(blob); }
 }
 
 function exportCSV() {
@@ -1816,7 +1942,10 @@ document.getElementById('btn-calc-back').addEventListener('click', () => goTo('s
 document.getElementById('btn-calc-pdf').addEventListener('click', () => {
   const d = new Date().toLocaleDateString('fr-FR'); let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Levains ${d}</title><style>body{font-family:Georgia,serif;font-size:12px;color:#36281A;padding:20px;max-width:600px;margin:0 auto}h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;margin:14px 0 6px;border-bottom:1px solid #D1B7A7;padding-bottom:4px}table{width:100%;border-collapse:collapse}td{padding:5px 8px;border-bottom:1px solid #eee}td:last-child{text-align:right}@media print{body{padding:0}}</style></head><body><h1>Calculateur levains — ${d}</h1>`;
   document.querySelectorAll('.calc-card').forEach(card => { const name = card.querySelector('.calc-name').textContent; const total = card.querySelector('.calc-total-input').value; h += `<h2>${name} — ${total} kg</h2><table>`; card.querySelectorAll('.calc-ing-row').forEach(row => { h += `<tr><td>${row.querySelector('.calc-ing-name').textContent}</td><td>${row.querySelector('.calc-ing-qty').textContent}</td></tr>`; }); h += `</table>`; });
-  h += `</body></html>`; const w = window.open('', '_blank'); w.document.write(h); w.document.close(); w.focus(); setTimeout(() => w.print(), 400);
+  h += `</body></html>`;
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(h); w.document.close(); w.focus(); setTimeout(() => w.print(), 400); }
+  else { const blob = new Blob([h], { type: 'text/html;charset=utf-8' }); window.location.href = URL.createObjectURL(blob); }
 });
 
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
@@ -2008,6 +2137,17 @@ function getBacPoids(bac, recNom) {
 /** Calcule le poids total déjà affecté dans les bacs pour une recette. */
 function getPoidsAffecte(recNom) {
   return (bacs[recNom] || []).reduce((sum, b) => sum + getBacPoids(b, recNom), 0);
+}
+
+/** Retourne la quantité totale d'un format déjà affectée dans tous les bacs. */
+function getQtyInBacs(recNom, fmtNom) {
+  return (bacs[recNom] || []).reduce((sum, b) => sum + (b.formats[fmtNom] || 0), 0);
+}
+
+/** Retourne la quantité totale saisie pour un format (tous canaux). */
+function getTotalQtySaisie(recNom, fmtNom) {
+  if (!qty[recNom] || !qty[recNom][fmtNom]) return 0;
+  return Object.values(qty[recNom][fmtNom]).reduce((a, b) => a + b, 0);
 }
 
 /**
@@ -2216,17 +2356,27 @@ function buildBacCard(bac, idx, recNom, max) {
     const qte = bac.formats[fmt.nom] || 0;
     const row = document.createElement('div');
     row.className = 'bac-fmt-row';
+    const qteSaisie = getTotalQtySaisie(recNom, fmt.nom);
+    const qteDejaEnBacs = getQtyInBacs(recNom, fmt.nom);
+    const plusBloque = qteDejaEnBacs >= qteSaisie;
     row.innerHTML = `
-      <div class="bac-fmt-name">${fmt.nom} <span class="bac-fmt-poids">· ${poidsUnit}g cru</span></div>
+      <div class="bac-fmt-name">${fmt.nom} <span class="bac-fmt-poids">· ${poidsUnit}g cru · ${qteDejaEnBacs}/${qteSaisie}</span></div>
       <div class="bac-fmt-qty-wrap">
         <div class="bac-fmt-btn" data-rec="${recNom}" data-idx="${idx}" data-fmt="${fmt.nom}" data-d="-1">−</div>
         <div class="bac-fmt-qty">${qte}</div>
-        <div class="bac-fmt-btn" data-rec="${recNom}" data-idx="${idx}" data-fmt="${fmt.nom}" data-d="1">+</div>
+        <div class="bac-fmt-btn" data-rec="${recNom}" data-idx="${idx}" data-fmt="${fmt.nom}" data-d="1"
+          style="${plusBloque ? 'opacity:0.3;cursor:not-allowed;pointer-events:none' : ''}">+</div>
       </div>`;
     row.querySelectorAll('.bac-fmt-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const r = btn.dataset.rec, i = parseInt(btn.dataset.idx);
         const f = btn.dataset.fmt, d = parseInt(btn.dataset.d);
+        if (d > 0) {
+          // Vérifier qu'on ne dépasse pas la quantité saisie dans la cuve
+          const deja = getQtyInBacs(r, f);
+          const total = getTotalQtySaisie(r, f);
+          if (deja >= total) return; // quota atteint — bouton bloqué
+        }
         bacs[r][i].formats[f] = Math.max(0, (bacs[r][i].formats[f] || 0) + d);
         renderBacsContent(r); renderBacsScreen();
       });
@@ -2386,8 +2536,13 @@ function printAllFiches() {
   if (!hasAny) { showToast('Aucun bac défini — configure les bacs d\'abord'); return; }
   allHTML += '</body></html>';
   const w = window.open('', '_blank');
-  w.document.write(allHTML); w.document.close(); w.focus();
-  setTimeout(() => w.print(), 500);
+  if (w) {
+    w.document.write(allHTML); w.document.close(); w.focus();
+    setTimeout(() => w.print(), 500);
+  } else {
+    const blob = new Blob([allHTML], { type: 'text/html;charset=utf-8' });
+    window.location.href = URL.createObjectURL(blob);
+  }
 }
 
 // Persister bacs + cuveAjust dans les fournées sauvegardées
@@ -2551,8 +2706,13 @@ function printFicheJournee() {
 
   h += `</body></html>`;
   const w = window.open('', '_blank');
-  w.document.write(h); w.document.close(); w.focus();
-  setTimeout(() => w.print(), 500);
+  if (w) {
+    w.document.write(h); w.document.close(); w.focus();
+    setTimeout(() => w.print(), 500);
+  } else {
+    const blob = new Blob([h], { type: 'text/html;charset=utf-8' });
+    window.location.href = URL.createObjectURL(blob);
+  }
 }
 
 
