@@ -1531,78 +1531,127 @@ function buildLevainCard(levName) {
   header.innerHTML = `<div class="editor-recette-name-wrap"><div class="editor-recette-name">${levName}</div><span class="editor-famille-tag" style="background:#E8F5EE;color:#2D6A47">levain</span></div><span class="editor-chevron">▾</span>`;
   const body = document.createElement('div'); body.className = 'editor-body';
   const lev = LEVAINS[levName];
-  
-  // Ratios de base
+
+  // ── Section 1 : ratios de base (en HTML statique) ──
   let bHTML = '<div class="editor-section-title">Ingrédients & ratios de base</div>';
-  lev.forEach((item, idx) => {
+  lev.forEach((item, i) => {
     bHTML += `<div class="ing-edit-row">
-      <input class="field-input wide" type="text" value="${item.ing}" data-levain="${levName}" data-idx="${idx}" data-field="ing">
-      <input class="field-input" type="number" step="0.01" value="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratio" title="Ratio de base">
+      <input class="field-input wide" type="text" value="${item.ing}" data-lev-base="${levName}" data-lev-i="${i}" data-lev-f="ing">
+      <input class="field-input" type="number" step="0.01" value="${item.ratio}" data-lev-base="${levName}" data-lev-i="${i}" data-lev-f="ratio" title="Ratio de base">
       <span class="field-unit">base</span>
-      <button class="btn-del" data-del-lev="${levName}" data-del-idx="${idx}">✕</button>
+      <button class="btn-del" data-del-lev="${levName}" data-del-idx="${i}">✕</button>
     </div>`;
   });
   bHTML += `<button class="btn-add" data-add-lev="${levName}">+ Ajouter ingrédient</button>`;
-  
-  // Ratios par fermentation — un tableau clair
   bHTML += `<div class="editor-section-title" style="margin-top:14px">Ratios par fermentation (optionnel)</div>`;
-  bHTML += `<div style="font-size:10px;color:var(--tan-dark);margin-bottom:8px">Si laissé vide, le ratio de base est utilisé. Permet d'avoir moins de levain en J+1 (fermentation longue) et plus en Direct.</div>`;
-  bHTML += `<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:6px;align-items:center;margin-bottom:4px">
+  bHTML += `<div style="font-size:10px;color:var(--tan-dark);margin-bottom:8px">Laisser vide = ratio de base. J+1 = fermentation longue (moins de levain). Direct = pétrissage le matin (plus de levain).</div>`;
+  bHTML += `<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:6px;align-items:center;margin-bottom:6px">
     <div style="font-size:9px;font-weight:700;color:var(--tan-dark);text-transform:uppercase">Ingrédient</div>
-    <div style="font-size:9px;font-weight:700;color:var(--dark);text-transform:uppercase;text-align:right">🌙 J+1</div>
-    <div style="font-size:9px;font-weight:700;color:var(--red);text-transform:uppercase;text-align:right">☀️ Direct</div>
+    <div style="font-size:9px;font-weight:700;color:var(--dark);text-align:right">🌙 J+1</div>
+    <div style="font-size:9px;font-weight:700;color:var(--red);text-align:right">☀️ Direct</div>
   </div>`;
-  lev.forEach((item, idx) => {
-    bHTML += `<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:6px;align-items:center;margin-bottom:6px">
-      <div class="lev-ing-label" data-lev-idx="${idx}" style="font-size:12px;font-weight:500;color:var(--dark)">${item.ing || '—'}</div>
-      <input class="field-input" type="number" step="0.01" value="${item.ratioJ1 !== undefined ? item.ratioJ1 : ''}" placeholder="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratioJ1" style="text-align:right">
-      <input class="field-input" type="number" step="0.01" value="${item.ratioDirect !== undefined ? item.ratioDirect : ''}" placeholder="${item.ratio}" data-levain="${levName}" data-idx="${idx}" data-field="ratioDirect" style="text-align:right">
-    </div>`;
-  });
-  
+  bHTML += `<div id="lev-ferm-rows-${levName.replace(/[^a-z0-9]/gi,'_')}"></div>`;
   bHTML += `<button class="btn-danger-full" data-del-levain="${levName}">Supprimer ce levain</button>`;
   body.innerHTML = bHTML;
-  
-  header.addEventListener('click', () => { body.classList.toggle('open'); header.querySelector('.editor-chevron').textContent = body.classList.contains('open') ? '▴' : '▾'; });
-  body.querySelectorAll('[data-field]').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const { levain, idx, field } = inp.dataset;
-      const val = parseFloat(inp.value);
-      if (field === 'ing') {
-        LEVAINS[levain][parseInt(idx)].ing = inp.value;
-        // Mettre à jour les labels du tableau de fermentation sans re-render complet
-        body.querySelectorAll(`[data-field="ratioJ1"][data-idx="${idx}"], [data-field="ratioDirect"][data-idx="${idx}"]`).forEach(sibling => {
-          const labelEl = sibling.closest('div')?.previousElementSibling;
-          // On ne touche pas au focus
-        });
-      } else if (field === 'ratio') {
-        LEVAINS[levain][parseInt(idx)].ratio = val || 0;
-        // Mettre à jour le placeholder des champs J+1/Direct
-        body.querySelectorAll(`[data-field="ratioJ1"][data-idx="${idx}"], [data-field="ratioDirect"][data-idx="${idx}"]`).forEach(sibling => {
-          sibling.placeholder = inp.value || '0';
-        });
-      } else if (field === 'ratioJ1') {
-        if (inp.value === '' || isNaN(val)) delete LEVAINS[levain][parseInt(idx)].ratioJ1;
-        else LEVAINS[levain][parseInt(idx)].ratioJ1 = val;
-      } else if (field === 'ratioDirect') {
-        if (inp.value === '' || isNaN(val)) delete LEVAINS[levain][parseInt(idx)].ratioDirect;
-        else LEVAINS[levain][parseInt(idx)].ratioDirect = val;
-      }
-      // NE PAS appeler renderEditor ici — ça détruit le focus et rend les champs inéditables
+
+  // ── Section 2 : inputs ratioJ1/ratioDirect en DOM pur ──
+  // Construit APRÈS body.innerHTML pour avoir des références directes
+  const fermRowsContainer = body.querySelector('#lev-ferm-rows-' + levName.replace(/[^a-z0-9]/gi,'_'));
+  lev.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:1fr 80px 80px;gap:6px;align-items:center;margin-bottom:6px';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'lev-ing-label';
+    nameEl.style.cssText = 'font-size:12px;font-weight:500;color:var(--dark)';
+    nameEl.textContent = item.ing || '—';
+
+    const inpJ1 = document.createElement('input');
+    inpJ1.type = 'number'; inpJ1.step = '0.01';
+    inpJ1.className = 'field-input';
+    inpJ1.style.textAlign = 'right';
+    inpJ1.placeholder = String(item.ratio);
+    if (item.ratioJ1 !== undefined) inpJ1.value = String(item.ratioJ1);
+    inpJ1.title = 'Ratio J+1 (fermentation longue)';
+    inpJ1.addEventListener('input', () => {
+      const val = parseFloat(inpJ1.value);
+      if (inpJ1.value === '' || isNaN(val)) delete LEVAINS[levName][i].ratioJ1;
+      else LEVAINS[levName][i].ratioJ1 = val;
     });
-    // Mettre à jour le nom d'ingrédient dans le tableau fermentation sans re-render
-    inp.addEventListener('blur', () => {
-      if (inp.dataset.field === 'ing') {
-        // Mettre à jour tous les labels du nom dans le tableau (sans re-render)
-        body.querySelectorAll('.lev-ing-label[data-lev-idx="' + inp.dataset.idx + '"]').forEach(el => {
-          el.textContent = inp.value || '—';
-        });
+
+    const inpDirect = document.createElement('input');
+    inpDirect.type = 'number'; inpDirect.step = '0.01';
+    inpDirect.className = 'field-input';
+    inpDirect.style.textAlign = 'right';
+    inpDirect.placeholder = String(item.ratio);
+    if (item.ratioDirect !== undefined) inpDirect.value = String(item.ratioDirect);
+    inpDirect.title = 'Ratio Direct (pétrissage le matin)';
+    inpDirect.addEventListener('input', () => {
+      const val = parseFloat(inpDirect.value);
+      if (inpDirect.value === '' || isNaN(val)) delete LEVAINS[levName][i].ratioDirect;
+      else LEVAINS[levName][i].ratioDirect = val;
+    });
+
+    row.appendChild(nameEl);
+    row.appendChild(inpJ1);
+    row.appendChild(inpDirect);
+    fermRowsContainer.appendChild(row);
+  });
+
+  // ── Listeners section de base (data-lev-base) ──
+  header.addEventListener('click', () => {
+    body.classList.toggle('open');
+    header.querySelector('.editor-chevron').textContent = body.classList.contains('open') ? '▴' : '▾';
+  });
+  body.querySelectorAll('[data-lev-base]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const levN = inp.dataset.levBase;
+      const i = parseInt(inp.dataset.levI);
+      const f = inp.dataset.levF;
+      if (f === 'ing') {
+        LEVAINS[levN][i].ing = inp.value;
+        // Mettre à jour le label de nom dans les rows fermentation
+        const lbl = fermRowsContainer.querySelectorAll('.lev-ing-label')[i];
+        if (lbl) lbl.textContent = inp.value || '—';
+        // Mettre à jour les placeholders J+1/Direct
+        const fermInputs = fermRowsContainer.querySelectorAll('input');
+        const j1inp = fermInputs[i * 2];
+        const dirinp = fermInputs[i * 2 + 1];
+        // pas de changement nécessaire sur le placeholder pour ing
+      } else if (f === 'ratio') {
+        const val = parseFloat(inp.value) || 0;
+        LEVAINS[levN][i].ratio = val;
+        // Mettre à jour les placeholders des inputs J+1/Direct
+        const fermInputs = fermRowsContainer.querySelectorAll('input');
+        const j1inp = fermInputs[i * 2];
+        const dirinp = fermInputs[i * 2 + 1];
+        if (j1inp) j1inp.placeholder = String(val);
+        if (dirinp) dirinp.placeholder = String(val);
       }
     });
   });
-  body.querySelectorAll('[data-del-lev]').forEach(btn => { btn.addEventListener('click', () => { LEVAINS[btn.dataset.delLev].splice(parseInt(btn.dataset.delIdx), 1); renderEditor(btn.dataset.delLev); }); });
-  body.querySelectorAll('[data-add-lev]').forEach(btn => { btn.addEventListener('click', () => { const l = btn.dataset.addLev; LEVAINS[l].push({ ing: '', ratio: 0 }); renderEditor(l); }); });
-  body.querySelectorAll('[data-del-levain]').forEach(btn => { btn.addEventListener('click', () => { if (!confirm('Supprimer ce levain ?')) return; delete LEVAINS[btn.dataset.delLevain]; renderEditor(); }); });
+
+  body.querySelectorAll('[data-del-lev]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      LEVAINS[btn.dataset.delLev].splice(parseInt(btn.dataset.delIdx), 1);
+      renderEditor(btn.dataset.delLev);
+    });
+  });
+  body.querySelectorAll('[data-add-lev]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const l = btn.dataset.addLev;
+      LEVAINS[l].push({ ing: '', ratio: 0 });
+      renderEditor(l);
+    });
+  });
+  body.querySelectorAll('[data-del-levain]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!confirm('Supprimer ce levain ?')) return;
+      delete LEVAINS[btn.dataset.delLevain];
+      renderEditor();
+    });
+  });
+
   card.appendChild(header); card.appendChild(body); return card;
 }
 
@@ -1836,9 +1885,12 @@ function exportPDF() {
   h += `</div></div>`; // fin col droite + wrap
 
   h += `</body></html>`;
-  const w = window.open('', '_blank');
-  if (w) { w.document.write(h); w.document.close(); w.focus(); setTimeout(() => w.print(), 400); }
-  else { const blob = new Blob([h], { type: 'text/html;charset=utf-8' }); window.location.href = URL.createObjectURL(blob); }
+  const _blobPDF = new Blob([h], { type: 'text/html;charset=utf-8' });
+  const _urlPDF = URL.createObjectURL(_blobPDF);
+  const _aPDF = document.createElement('a');
+  _aPDF.href = _urlPDF; _aPDF.target = '_blank'; _aPDF.style.display = 'none';
+  document.body.appendChild(_aPDF); _aPDF.click();
+  setTimeout(() => { document.body.removeChild(_aPDF); URL.revokeObjectURL(_urlPDF); }, 2000);
 }
 
 function exportCSV() {
@@ -1943,9 +1995,12 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
   const d = new Date().toLocaleDateString('fr-FR'); let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Levains ${d}</title><style>body{font-family:Georgia,serif;font-size:12px;color:#36281A;padding:20px;max-width:600px;margin:0 auto}h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;margin:14px 0 6px;border-bottom:1px solid #D1B7A7;padding-bottom:4px}table{width:100%;border-collapse:collapse}td{padding:5px 8px;border-bottom:1px solid #eee}td:last-child{text-align:right}@media print{body{padding:0}}</style></head><body><h1>Calculateur levains — ${d}</h1>`;
   document.querySelectorAll('.calc-card').forEach(card => { const name = card.querySelector('.calc-name').textContent; const total = card.querySelector('.calc-total-input').value; h += `<h2>${name} — ${total} kg</h2><table>`; card.querySelectorAll('.calc-ing-row').forEach(row => { h += `<tr><td>${row.querySelector('.calc-ing-name').textContent}</td><td>${row.querySelector('.calc-ing-qty').textContent}</td></tr>`; }); h += `</table>`; });
   h += `</body></html>`;
-  const w = window.open('', '_blank');
-  if (w) { w.document.write(h); w.document.close(); w.focus(); setTimeout(() => w.print(), 400); }
-  else { const blob = new Blob([h], { type: 'text/html;charset=utf-8' }); window.location.href = URL.createObjectURL(blob); }
+  const _blobPDF = new Blob([h], { type: 'text/html;charset=utf-8' });
+  const _urlPDF = URL.createObjectURL(_blobPDF);
+  const _aPDF = document.createElement('a');
+  _aPDF.href = _urlPDF; _aPDF.target = '_blank'; _aPDF.style.display = 'none';
+  document.body.appendChild(_aPDF); _aPDF.click();
+  setTimeout(() => { document.body.removeChild(_aPDF); URL.revokeObjectURL(_urlPDF); }, 2000);
 });
 
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
@@ -2535,14 +2590,13 @@ function printAllFiches() {
 
   if (!hasAny) { showToast('Aucun bac défini — configure les bacs d\'abord'); return; }
   allHTML += '</body></html>';
-  const w = window.open('', '_blank');
-  if (w) {
-    w.document.write(allHTML); w.document.close(); w.focus();
-    setTimeout(() => w.print(), 500);
-  } else {
-    const blob = new Blob([allHTML], { type: 'text/html;charset=utf-8' });
-    window.location.href = URL.createObjectURL(blob);
-  }
+  // Blob link — contourne les popup blockers sur mobile
+  const _ballHTML = new Blob([allHTML], { type: 'text/html;charset=utf-8' });
+  const _uallHTML = URL.createObjectURL(_ballHTML);
+  const _aallHTML = document.createElement('a');
+  _aallHTML.href = _uallHTML; _aallHTML.target = '_blank'; _aallHTML.style.display = 'none';
+  document.body.appendChild(_aallHTML); _aallHTML.click();
+  setTimeout(() => { document.body.removeChild(_aallHTML); URL.revokeObjectURL(_uallHTML); }, 2000);
 }
 
 // Persister bacs + cuveAjust dans les fournées sauvegardées
@@ -2705,14 +2759,13 @@ function printFicheJournee() {
   if (!hasBacs) h += `<p style="color:#AE7D66;font-style:italic">Aucun bac défini — accéder à l'écran Bacs pour les configurer.</p>`;
 
   h += `</body></html>`;
-  const w = window.open('', '_blank');
-  if (w) {
-    w.document.write(h); w.document.close(); w.focus();
-    setTimeout(() => w.print(), 500);
-  } else {
-    const blob = new Blob([h], { type: 'text/html;charset=utf-8' });
-    window.location.href = URL.createObjectURL(blob);
-  }
+  // Blob link — contourne les popup blockers sur mobile
+  const _bh = new Blob([h], { type: 'text/html;charset=utf-8' });
+  const _uh = URL.createObjectURL(_bh);
+  const _ah = document.createElement('a');
+  _ah.href = _uh; _ah.target = '_blank'; _ah.style.display = 'none';
+  document.body.appendChild(_ah); _ah.click();
+  setTimeout(() => { document.body.removeChild(_ah); URL.revokeObjectURL(_uh); }, 2000);
 }
 
 
