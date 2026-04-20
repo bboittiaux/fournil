@@ -271,6 +271,20 @@ html, body {
 .sync-dot.ok { background: #5cb85c; }
 .sync-dot.err { background: var(--red); }
 
+/* ── IMPRESSION UNIVERSELLE (fiche journée, bacs, PDF) ── */
+#print-frame { display: none; }
+@media print {
+  body > *:not(#print-frame) { display: none !important; }
+  #print-frame {
+    display: block !important;
+    font-family: Georgia, serif;
+    font-size: 11px;
+    color: #36281A;
+    padding: 0;
+    margin: 0;
+  }
+}
+
 /* ════════════════════════════════════════════
    BACS DE POINTAGE — styles écran + cartes
    ════════════════════════════════════════════ */
