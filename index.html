@@ -568,6 +568,7 @@ html, body {
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div id="print-frame"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
@@ -1885,12 +1886,10 @@ function exportPDF() {
   h += `</div></div>`; // fin col droite + wrap
 
   h += `</body></html>`;
-  const _blobPDF = new Blob([h], { type: 'text/html;charset=utf-8' });
-  const _urlPDF = URL.createObjectURL(_blobPDF);
-  const _aPDF = document.createElement('a');
-  _aPDF.href = _urlPDF; _aPDF.target = '_blank'; _aPDF.style.display = 'none';
-  document.body.appendChild(_aPDF); _aPDF.click();
-  setTimeout(() => { document.body.removeChild(_aPDF); URL.revokeObjectURL(_urlPDF); }, 2000);
+  const pfPDF = document.getElementById('print-frame');
+  pfPDF.innerHTML = h;
+  window.print();
+  setTimeout(() => { pfPDF.innerHTML = ''; }, 1000);
 }
 
 function exportCSV() {
@@ -1995,12 +1994,10 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
   const d = new Date().toLocaleDateString('fr-FR'); let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Levains ${d}</title><style>body{font-family:Georgia,serif;font-size:12px;color:#36281A;padding:20px;max-width:600px;margin:0 auto}h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;margin:14px 0 6px;border-bottom:1px solid #D1B7A7;padding-bottom:4px}table{width:100%;border-collapse:collapse}td{padding:5px 8px;border-bottom:1px solid #eee}td:last-child{text-align:right}@media print{body{padding:0}}</style></head><body><h1>Calculateur levains — ${d}</h1>`;
   document.querySelectorAll('.calc-card').forEach(card => { const name = card.querySelector('.calc-name').textContent; const total = card.querySelector('.calc-total-input').value; h += `<h2>${name} — ${total} kg</h2><table>`; card.querySelectorAll('.calc-ing-row').forEach(row => { h += `<tr><td>${row.querySelector('.calc-ing-name').textContent}</td><td>${row.querySelector('.calc-ing-qty').textContent}</td></tr>`; }); h += `</table>`; });
   h += `</body></html>`;
-  const _blobPDF = new Blob([h], { type: 'text/html;charset=utf-8' });
-  const _urlPDF = URL.createObjectURL(_blobPDF);
-  const _aPDF = document.createElement('a');
-  _aPDF.href = _urlPDF; _aPDF.target = '_blank'; _aPDF.style.display = 'none';
-  document.body.appendChild(_aPDF); _aPDF.click();
-  setTimeout(() => { document.body.removeChild(_aPDF); URL.revokeObjectURL(_urlPDF); }, 2000);
+  const pfPDF = document.getElementById('print-frame');
+  pfPDF.innerHTML = h;
+  window.print();
+  setTimeout(() => { pfPDF.innerHTML = ''; }, 1000);
 });
 
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
@@ -2591,12 +2588,10 @@ function printAllFiches() {
   if (!hasAny) { showToast('Aucun bac défini — configure les bacs d\'abord'); return; }
   allHTML += '</body></html>';
   // Blob link — contourne les popup blockers sur mobile
-  const _ballHTML = new Blob([allHTML], { type: 'text/html;charset=utf-8' });
-  const _uallHTML = URL.createObjectURL(_ballHTML);
-  const _aallHTML = document.createElement('a');
-  _aallHTML.href = _uallHTML; _aallHTML.target = '_blank'; _aallHTML.style.display = 'none';
-  document.body.appendChild(_aallHTML); _aallHTML.click();
-  setTimeout(() => { document.body.removeChild(_aallHTML); URL.revokeObjectURL(_uallHTML); }, 2000);
+  const pf2 = document.getElementById('print-frame');
+  pf2.innerHTML = allHTML;
+  window.print();
+  setTimeout(() => { pf2.innerHTML = ''; }, 1000);
 }
 
 // Persister bacs + cuveAjust dans les fournées sauvegardées
