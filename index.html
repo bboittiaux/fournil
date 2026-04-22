@@ -2637,13 +2637,10 @@ function printFicheJournee() {
     .bac-title{font-size:14px;font-weight:700;margin-bottom:4px}
     .bac-title.prio{color:#C73600}
     .bac-sub{font-size:10px;color:#AE7D66;margin-bottom:7px}
-    .fac{display:grid;grid-template-columns:60px 1fr;gap:4px;font-size:11px;margin-top:7px;border-top:1px solid #E0D8C0;padding-top:7px}
-    .fac-lbl{font-size:9px;font-weight:700;color:#AE7D66;text-transform:uppercase;padding-top:1px}
     .stats{display:flex;gap:16px;margin-bottom:14px}
     .stat{text-align:center;background:#36281A;color:#EFEDD8;padding:8px 16px;border-radius:6px}
     .stat-val{font-size:22px;font-weight:700}
     .stat-lbl{font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px}
-    @media print{body{padding:8px}.bac{page-break-inside:avoid}}
   </style></head><body>
   <h1>Le Fournil des Enfariné.e.s</h1>
   <div class="date">Fournée du ${date}</div>`;
@@ -2659,7 +2656,7 @@ function printFicheJournee() {
   const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
   const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
 
-  // Fonction locale pour générer le tableau d'une cuve
+  // Génère le tableau d'une cuve (ingrédients + quantités ajustées)
   function cuveHTML(recsList) {
     let out = '';
     const cuvesFaites = new Set();
@@ -2699,20 +2696,12 @@ function printFicheJournee() {
     return out;
   }
 
-  // Pesées J+1
-  if (recsJ1.length) {
-    h += `<h2 class="j1">🌙 Ce soir — Pesées J+1</h2>`;
-    h += cuveHTML(recsJ1);
-  }
-  // Pesées Direct
-  if (recsDirect.length) {
-    h += `<h2 class="direct">☀️ Demain matin — Pesées Direct</h2>`;
-    h += cuveHTML(recsDirect);
-  }
+  if (recsJ1.length) { h += `<h2 class="j1">🌙 Ce soir — Pesées J+1</h2>`; h += cuveHTML(recsJ1); }
+  if (recsDirect.length) { h += `<h2 class="direct">☀️ Demain matin — Pesées Direct</h2>`; h += cuveHTML(recsDirect); }
 
-  // Levains
-  function levainHTML(recsList, label) {
-    const ing = calcAllIngForRecs(recsList);
+  // Levains — ftype est un PARAMÈTRE explicite (J+1 ou Direct)
+  function levainHTML(recsList, ftype, label) {
+    const ing = calcAllIngForRecs(recsList, ftype);
     const levains = calcLevains(ing, ftype);
     if (!Object.keys(levains).length) return '';
     let out = `<h3>${label}</h3>`;
@@ -2727,26 +2716,26 @@ function printFicheJournee() {
   if (recsJ1.length || recsDirect.length) {
     h += `<h2>Levains à préparer</h2>`;
     if (recsJ1.length && recsDirect.length) {
-      h += levainHTML(recsJ1, '🌙 J+1 — ce soir');
-      h += levainHTML(recsDirect, '☀️ Direct — demain matin');
+      h += levainHTML(recsJ1, 'j1', '🌙 Levain J+1 — à utiliser ce soir');
+      h += levainHTML(recsDirect, 'direct', '☀️ Levain Direct — à utiliser demain matin');
+    } else if (recsJ1.length) {
+      h += levainHTML(recsJ1, 'j1', '🌙 Levain J+1');
     } else {
-      h += levainHTML(orderedRecettes, '');
+      h += levainHTML(recsDirect, 'direct', '☀️ Levain Direct');
     }
   }
 
-  // Bacs — triés : prioritaires d'abord, puis J+1, puis Direct
+  // Bacs — prioritaires d'abord par recette
   h += `<h2>Bacs de pointage</h2>`;
   let hasBacs = false;
   orderedRecettes.forEach(rec => {
     const bacList = (bacs[rec] || []);
     if (!bacList.length) return;
-    // Trier : prio en premier
     const sorted = [...bacList].sort((a, b) => (b.prio ? 1 : 0) - (a.prio ? 1 : 0));
-    sorted.forEach((bac, i) => {
+    sorted.forEach((bac) => {
       hasBacs = true;
       const poids = getBacPoids(bac, rec);
       const fv = (fermentation[rec] || 'j1') === 'j1' ? '🌙 J+1' : '☀️ Direct';
-
       h += `<div class="bac ${bac.prio ? 'prio' : ''}">
         <div class="bac-title ${bac.prio ? 'prio' : ''}">${bac.prio ? '★ ' : ''}${bac.label}</div>
         <div class="bac-sub">${rec} · ${fv} · ${poids.toFixed(3)} kg pâte crue</div>
@@ -2760,21 +2749,21 @@ function printFicheJournee() {
       h += `<tr style="background:#EFEDD8;font-weight:700"><td>Total</td><td style="text-align:center">${Object.values(bac.formats||{}).reduce((a,b)=>a+b,0)}</td><td class="r">${poids.toFixed(3)} kg</td></tr></table>`;
       const notes_bac = (RECETTES[rec] || {}).notes || '';
       if (notes_bac) {
-        h += `<div style="border-top:1px solid #E0D8C0;padding-top:6px;margin-top:4px;font-size:11px;color:#36281A;white-space:pre-wrap">${notes_bac}</div>`;
+        h += `<div style="border-top:1px solid #E0D8C0;padding-top:6px;margin-top:4px;font-size:11px;white-space:pre-wrap">${notes_bac}</div>`;
       }
       h += '</div>';
     });
   });
-  if (!hasBacs) h += `<p style="color:#AE7D66;font-style:italic">Aucun bac défini — accéder à l'écran Bacs pour les configurer.</p>`;
+  if (!hasBacs) h += `<p style="color:#AE7D66;font-style:italic">Aucun bac défini.</p>`;
 
   h += `</body></html>`;
-  // Blob link — contourne les popup blockers sur mobile
-  const _bh = new Blob([h], { type: 'text/html;charset=utf-8' });
-  const _uh = URL.createObjectURL(_bh);
-  const _ah = document.createElement('a');
-  _ah.href = _uh; _ah.target = '_blank'; _ah.style.display = 'none';
-  document.body.appendChild(_ah); _ah.click();
-  setTimeout(() => { document.body.removeChild(_ah); URL.revokeObjectURL(_uh); }, 2000);
+
+  // Impression via print-frame — fonctionne sur Safari iOS, Chrome Android
+  const pf = document.getElementById('print-frame');
+  if (!pf) { alert('Erreur: zone impression introuvable.'); return; }
+  pf.innerHTML = h;
+  window.print();
+  setTimeout(() => { pf.innerHTML = ''; }, 1500);
 }
 
 
