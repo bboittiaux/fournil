@@ -588,6 +588,9 @@ html, body {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getDatabase, ref, set, get, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
+// Authentification anonyme — sécurise la base Firebase en empêchant les accès non authentifiés
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
 // ── 1. CONFIGURATION FIREBASE ──
 const fbApp = initializeApp({
   apiKey: "AIzaSyArGWWiGJJsDiUHGCHlFAK00TL3swRt0Cs",
@@ -2767,7 +2770,28 @@ function printFicheJournee() {
 }
 
 
-init();
+// ── AUTHENTIFICATION AU CHARGEMENT ──
+// Avant d'initialiser l'app, on s'assure qu'un utilisateur anonyme est connecté.
+// Les règles Firebase exigeront désormais auth != null pour toute lecture/écriture.
+const auth = getAuth(fbApp);
+
+// Déclencher la connexion anonyme (silencieuse, pas de UI)
+signInAnonymously(auth).catch(err => {
+  console.error('Échec authentification anonyme :', err);
+  // Fallback : on lance quand même init() pour ne pas bloquer l'app
+  // (utile si Firebase Auth est down temporairement)
+  setTimeout(() => { if (!window._initCalled) { window._initCalled = true; init(); } }, 5000);
+});
+
+// Attendre que l'auth soit prête AVANT de lancer init()
+// Cela garantit que toutes les requêtes Firebase partent avec un token valide
+onAuthStateChanged(auth, user => {
+  if (user && !window._initCalled) {
+    window._initCalled = true;
+    console.log('Authentifié (UID anonyme : ' + user.uid.substring(0, 8) + '…)');
+    init();
+  }
+});
 </script>
 </body>
 </html>
