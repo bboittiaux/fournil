@@ -408,6 +408,7 @@ html, body {
   font-size: 13px; font-weight: 700; cursor: pointer; color: white;
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -477,8 +478,7 @@ html, body {
       <div id="recap-levains"></div>
       <div class="section-lbl">Exporter les documents</div>
       <div class="export-card" id="exp-pdf"><div><div class="export-title">Résumé PDF</div><div class="export-sub">Imprimable — toutes les pesées</div></div><div class="export-arrow">↓</div></div>
-      <div class="export-card" id="exp-csv"><div><div class="export-title">Excel / CSV</div><div class="export-sub">Pesées + levains + pains</div></div><div class="export-arrow">↓</div></div>
-      <div class="export-card" id="exp-odoo"><div><div class="export-title">Odoo Manufacturing Order</div><div class="export-sub">Fichier pour l'ERP</div></div><div class="export-arrow">↓</div></div>
+      <div class="export-card" id="exp-xlsx"><div><div class="export-title">Tableur Excel (.xlsx)</div><div class="export-sub">4 onglets : résumé, pesées, levains, bacs</div></div><div class="export-arrow">↓</div></div>
       <div class="export-card" id="exp-fiche-journee"><div><div class="export-title">Fiche de journée</div><div class="export-sub">Pesées + levains + bacs — tout en une page</div></div><div class="export-arrow">↓</div></div>
     </div>
     <div class="bottom-bar">
@@ -1783,197 +1783,605 @@ function dl(c, n) { const b = new Blob(['\uFEFF' + c], { type: 'text/csv;charset
 function today() { return new Date().toISOString().slice(0, 10); }
 
 function exportPDF() {
-  const d = new Date().toLocaleDateString('fr-FR');
-  let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournée ${d}</title><style>
-    *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  const date = new Date().toLocaleDateString('fr-FR');
+  const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
+  const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
+
+  // Compter les bacs pour décider du layout (A ou B)
+  let totalBacs = 0;
+  orderedRecettes.forEach(r => { totalBacs += (bacs[r] || []).length; });
+  const layoutB = totalBacs > 10; // Bascule auto en grille 2 cols si beaucoup de bacs
+
+  // Stats globales
+  let totalPains = 0, totalKg = 0;
+  orderedRecettes.forEach(r => { totalPains += getTotalPains(r); totalKg += getPoidsRecTotal(r); });
+
+  // Liste des recettes par fermentation pour le bandeau d'en-tête
+  const j1Names = recsJ1.join(', ');
+  const directNames = recsDirect.join(', ');
+  const metaFerm = [
+    j1Names ? `🌙 ${j1Names}` : '',
+    directNames ? `☀️ ${directNames}` : ''
+  ].filter(Boolean).join(' · ');
+
+  // ─── CSS commun pour l'impression ───
+  let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournée ${date}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     html,body{margin:0;padding:0}
-    body{font-family:Arial,Helvetica,sans-serif;font-size:8px;color:#36281A;padding:6mm}
-    .top{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #36281A;margin-bottom:4px;padding-bottom:3px}
-    h1{font-size:13px;margin:0;font-family:Georgia,serif}
-    .date{font-size:8px;color:#AE7D66}
-    .wrap{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
-    .col{}
-    h2{font-size:9px;margin:6px 0 2px;padding:2px 4px;background:#36281A;color:white;letter-spacing:0.5px;text-transform:uppercase}
-    h2.j1{background:#36281A}
-    h2.direct{background:#C73600}
-    h2.lev{background:#2D6A47}
-    h3{font-size:8px;margin:4px 0 1px;color:#36281A;font-weight:700;border-bottom:1px solid #E0D8C0;padding-bottom:1px}
-    table{width:100%;border-collapse:collapse;margin-bottom:3px}
-    td,th{padding:1.5px 4px;text-align:left;font-size:7.5px;border-bottom:1px solid #E0D8C0}
-    th{background:#EFEDD8;font-size:7px;text-transform:uppercase;letter-spacing:0.3px;color:#AE7D66;font-weight:700}
-    td:last-child,th:last-child{text-align:right;font-weight:700}
-    .tot td{background:#EFEDD8;font-weight:700;border-top:1px solid #36281A}
-    .adj{color:#C73600;font-size:7px}
-    @media print{
-      @page{size:A4;margin:8mm}
-      body{padding:0}
-      .no-break{break-inside:avoid}
-    }
-  </style></head><body>
-  <div class="top">
-    <h1>Le Fournil des Enfariné.e.s — Fournée du ${d}</h1>
-    <span class="date">${orderedRecettes.length} recette${orderedRecettes.length>1?'s':''} · ${orderedRecettes.map(r=>(fermentation[r]||'j1')==='j1'?'🌙':'☀️').join(' ')}</span>
-  </div>
-  <div class="wrap">`;
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#36281A;padding:7mm 9mm;font-size:9.5px;line-height:1.25}
+    .header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #36281A;padding-bottom:3px;margin-bottom:5px}
+    .header-title{font-family:Georgia,serif;font-size:15px;font-weight:700}
+    .header-meta{font-size:10px;color:#666}
+    .header-meta strong{color:#36281A}
+    .big-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px}
+    .big-stat{background:#36281A;color:#EFEDD8;padding:5px 9px;border-radius:3px;display:flex;align-items:baseline;gap:6px}
+    .big-stat-val{font-size:18px;font-weight:800;font-family:Georgia,serif;line-height:1}
+    .big-stat-lbl{font-size:7.5px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8}
+    .section-banner{background:#36281A;color:white;padding:2px 7px;font-size:8.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px}
+    .section-banner.levain{background:#2D6A47}
+    .section-banner.pains{background:#AE7D66}
+    .section-banner.bacs{background:#8B6F47}
+    .cuve-bloc{margin-bottom:5px;break-inside:avoid}
+    .cuve-head{display:flex;justify-content:space-between;align-items:baseline;padding:2px 4px;border-bottom:1px solid #D1B7A7;margin-bottom:2px}
+    .cuve-head.j1{background:#f4eee5;border-bottom-color:#36281A}
+    .cuve-head.direct{background:#FEF5F0;border-bottom-color:#C73600}
+    .cuve-name{font-weight:700;font-size:10.5px}
+    .cuve-kg{font-size:12px;font-weight:800;font-family:Georgia,serif}
+    .cuve-kg.adj{color:#C73600}
+    .cuve-adj-badge{display:inline-block;background:#C73600;color:white;font-size:7.5px;font-weight:700;padding:0 3px;border-radius:2px;margin-left:3px}
+    .cuve-ing{display:flex;justify-content:space-between;padding:0.5px 8px;font-size:9.5px}
+    .cuve-ing-name{color:#5a4a3a}
+    .cuve-ing-qty{font-weight:600;font-variant-numeric:tabular-nums}
+    .cuve-decli{margin-left:8px;padding-left:5px;border-left:2px solid #D1B7A7;font-size:9px;color:#AE7D66}
+    .cuve-decli div{padding:0.5px 0}
+    .cuve-decli strong{color:#36281A}
+    .lev-group-label{font-size:8px;font-weight:700;color:#AE7D66;text-transform:uppercase;letter-spacing:0.5px;margin:3px 0 2px}
+    .lev-bloc{background:#f6f9f3;border:1px solid #c8dcc0;border-radius:3px;padding:3px 5px;margin-bottom:3px;break-inside:avoid}
+    .lev-head{display:flex;justify-content:space-between;border-bottom:1px solid #c8dcc0;padding-bottom:1px;margin-bottom:1px}
+    .lev-name{font-weight:700;font-size:10px;color:#2D6A47}
+    .lev-total{font-size:11px;font-weight:800;font-family:Georgia,serif;color:#2D6A47}
+    .lev-ing{display:flex;justify-content:space-between;padding:0.5px 3px;font-size:9px}
+    .pains-table{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:5px}
+    .pains-table th{background:#EFEDD8;padding:2px 3px;text-align:left;font-size:7.5px;text-transform:uppercase;letter-spacing:0.3px;color:#AE7D66;font-weight:700}
+    .pains-table th.num{text-align:right}
+    .pains-table td{padding:1.5px 3px;border-bottom:1px solid #f3eee4}
+    .pains-table td.num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+    .pains-table tr.total td{background:#EFEDD8;font-weight:800;border-top:1.5px solid #36281A}
+    .bac-compact{display:grid;grid-template-columns:16px 22px 1fr auto 38px;gap:4px;align-items:center;padding:2px 4px;border-bottom:1px solid #f3eee4;font-size:9.5px}
+    .bac-compact.prio{background:#FEF5F0;border-left:2px solid #C73600}
+    .bac-compact-star{color:#C73600;font-size:10px;text-align:center;font-weight:700}
+    .bac-compact-num{font-family:Georgia,serif;font-weight:800;font-size:14px;color:#36281A;text-align:center;line-height:1}
+    .bac-compact.prio .bac-compact-num{color:#C73600}
+    .bac-compact-name{font-weight:600}
+    .bac-compact-tag{display:inline-block;background:#36281A;color:white;font-size:7px;padding:1px 4px;border-radius:2px;margin-right:3px;font-weight:700;text-transform:uppercase}
+    .bac-compact-fmts{font-size:9px;color:#555;text-align:right;font-variant-numeric:tabular-nums}
+    .bac-compact-kg{text-align:right;font-weight:800;font-family:Georgia,serif;font-size:11px}
+    .bacs-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+    .bac-mini{border:1px solid #E0D8C0;border-radius:3px;padding:3px 5px;font-size:9px;background:white}
+    .bac-mini.prio{border:1.5px solid #C73600;background:#FEF5F0}
+    .bac-mini-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1px}
+    .bac-mini-name{font-weight:700;font-size:9.5px}
+    .bac-mini-kg{font-family:Georgia,serif;font-weight:800;font-size:10.5px}
+    .bac-mini-content{font-size:8.5px;color:#555;font-variant-numeric:tabular-nums}
+    .notes-box{margin-top:10px;padding:6px 8px;background:#f9f6f0;border-radius:3px;font-size:9px;color:#AE7D66;line-height:1.4}
+    .notes-box strong{color:#36281A}
+    @page{size:A4 landscape;margin:0}
+  </style></head><body>`;
 
-  // ── Colonne gauche : pains par recette ──
-  h += `<div class="col"><h2>Pains à produire</h2>`;
-  // Tableau compact des pains
-  h += `<table><tr><th>Recette</th><th>Format</th>${CANAUX.map(c=>`<th>${c.substring(0,4)}</th>`).join('')}<th>Tot</th></tr>`;
-  let totalPains=0, totalKg=0;
-  orderedRecettes.forEach(rec => {
-    (FORMATS[rec]||[]).forEach(fmt => {
-      const pc = poidsCru(rec, fmt);
-      const cols = CANAUX.map(c => qty[rec]&&qty[rec][fmt.nom] ? qty[rec][fmt.nom][c]||0 : 0);
-      const tot = cols.reduce((a,b)=>a+b,0);
-      if (tot>0) {
-        h += `<tr><td>${rec}</td><td>${fmt.nom}</td>${cols.map(v=>`<td>${v||''}</td>`).join('')}<td>${tot}</td></tr>`;
-        totalPains+=tot; totalKg+=tot*pc;
+  // ─── EN-TÊTE ───
+  h += `<div class="header">
+    <div class="header-title">Le Fournil des Enfariné.e.s</div>
+    <div class="header-meta">
+      Fournée du <strong>${date}</strong> ·
+      <strong>${orderedRecettes.length} recette${orderedRecettes.length>1?'s':''} · ${totalBacs} bac${totalBacs>1?'s':''}</strong>
+      ${metaFerm ? ' · ' + metaFerm : ''}
+    </div>
+  </div>`;
+
+  // ─── STATS GLOBALES ───
+  h += `<div class="big-stats">
+    <div class="big-stat"><span class="big-stat-val">${totalPains}</span><span class="big-stat-lbl">Pains à produire</span></div>
+    <div class="big-stat"><span class="big-stat-val">${totalKg.toFixed(1)}</span><span class="big-stat-lbl">kg pâte crue</span></div>
+    <div class="big-stat"><span class="big-stat-val">${orderedRecettes.length}</span><span class="big-stat-lbl">Recettes</span></div>
+    <div class="big-stat"><span class="big-stat-val">${totalBacs}</span><span class="big-stat-lbl">Bacs</span></div>
+  </div>`;
+
+  // ─── FONCTION : HTML des pesées d'une cuve ou recette simple ───
+  function cuveBlockHTML(recsList) {
+    let out = '';
+    const cuvesFaites = new Set();
+
+    getParentesAvecDecli().forEach(parent => {
+      const membres = getFamille(parent).filter(r => recsList.includes(r));
+      if (!membres.length) return;
+      cuvesFaites.add(parent);
+
+      // Poids total de la cuve = somme des parts de base (sans inclusions)
+      const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
+      const mult = (() => {
+        for (const r of membres) {
+          const aj = cuveAjust[r];
+          if (aj && aj.enabled) return 1 + aj.pct / 100;
+        }
+        return 1;
+      })();
+      const ptAdj = pt * mult;
+      const bi = RECETTES[parent].ingredients;
+      const refRec = membres.includes(parent) ? parent : membres[0];
+      const dn = bi.reduce((s, i) => {
+        let r = i.ratio;
+        if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
+        return s + r;
+      }, 0);
+
+      const ftype = (fermentation[membres[0]] || 'j1');
+      const fermClass = ftype === 'direct' ? 'direct' : 'j1';
+      const fermIcon = ftype === 'direct' ? '☀️' : '🌙';
+      const isAdj = Math.abs(mult - 1) > 0.001;
+      const adjBadge = isAdj ? ` <span class="cuve-adj-badge">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
+
+      out += `<div class="cuve-bloc">
+        <div class="cuve-head ${fermClass}">
+          <div class="cuve-name">${fermIcon} Cuve ${parent}${adjBadge}</div>
+          <div class="cuve-kg ${isAdj?'adj':''}">${ptAdj.toFixed(3)} kg</div>
+        </div>`;
+
+      // Ingrédients de base ajustés
+      bi.forEach(i => {
+        let r = i.ratio;
+        if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
+        const q = (r / dn) * ptAdj;
+        out += `<div class="cuve-ing"><span class="cuve-ing-name">${i.ing}</span><span class="cuve-ing-qty">${q.toFixed(3)}</span></div>`;
+      });
+
+      // Parts : afficher TOUTES les parts (y compris parent si sélectionné),
+      // d'abord celles sans inclusions (parent en premier), puis celles avec inclusions
+      // Règle métier : quand tu pétris la cuve, tu divises en parts dont chacune peut recevoir ses inclusions
+      const partsSansIncl = membres.filter(r => !(RECETTES[r].inclusions || []).length);
+      const partsAvecIncl = membres.filter(r => (RECETTES[r].inclusions || []).length);
+
+      if (partsSansIncl.length || partsAvecIncl.length) {
+        out += `<div class="cuve-decli">`;
+        partsSansIncl.forEach(rec => {
+          const p = getPoidsRec(rec) * mult;
+          out += `<div><strong>↳ Part ${rec} (${p.toFixed(3)} kg)</strong> <span style="color:#999">— sans inclusion</span></div>`;
+        });
+        partsAvecIncl.forEach(rec => {
+          const p = getPoidsRec(rec);       // poids pâte de base
+          const pAdj = p * mult;             // poids ajusté
+          let line = `<div>↳ Part ${rec} (${pAdj.toFixed(3)} kg)`;
+          (RECETTES[rec].inclusions || []).forEach(inc => {
+            const qInc = (p / (1 + inc.ratio)) * inc.ratio * mult;
+            line += ` + ${inc.ing} ${qInc.toFixed(3)} kg`;
+          });
+          line += `</div>`;
+          out += line;
+        });
+        out += `</div>`;
       }
-    });
-  });
-  h += `<tr class="tot"><td colspan="${2+CANAUX.length}">Total</td><td>${totalPains}</td></tr></table>`;
-  h += `<div style="font-size:7px;color:#AE7D66;margin-bottom:4px">${totalKg.toFixed(2)} kg pâte crue estimée</div>`;
 
-  // ── Levains ──
-  const recsJ1 = orderedRecettes.filter(r=>(fermentation[r]||'j1')==='j1');
-  const recsDirect = orderedRecettes.filter(r=>fermentation[r]==='direct');
-
-  function levSection(recsList, ftype, label) {
-    const ing = calcAllIngForRecs(recsList, ftype);
-    const levs = calcLevains(ing, ftype);
-    if (!Object.keys(levs).length) return '';
-    let out = `<h2 class="lev">${label}</h2>`;
-    Object.entries(levs).forEach(([lev, data]) => {
-      out += `<div class="no-break"><h3>${lev} — ${data.total.toFixed(3)} kg</h3><table>`;
-      data.compos.forEach(c => { out += `<tr><td>${c.ing}</td><td>${c.qty.toFixed(3)} kg</td></tr>`; });
-      out += `</table></div>`;
+      out += `</div>`;
     });
+
+    // Recettes indépendantes (pas dans une famille avec déclinaisons)
+    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+      const p = getPoidsRec(rec);
+      if (!p) return;
+      const mult = (() => { const aj = cuveAjust[rec]; return aj && aj.enabled ? 1 + aj.pct/100 : 1; })();
+      const pAdj = p * mult;
+      const ings = RECETTES[rec].ingredients || [];
+      const dn = ings.reduce((s, i) => {
+        let r = i.ratio;
+        if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) r = levainRatioOverride[rec][i.ing] / 1000;
+        return s + r;
+      }, 0);
+
+      const ftype = (fermentation[rec] || 'j1');
+      const fermClass = ftype === 'direct' ? 'direct' : 'j1';
+      const fermIcon = ftype === 'direct' ? '☀️' : '🌙';
+      const isAdj = Math.abs(mult - 1) > 0.001;
+      const adjBadge = isAdj ? ` <span class="cuve-adj-badge">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
+
+      out += `<div class="cuve-bloc">
+        <div class="cuve-head ${fermClass}">
+          <div class="cuve-name">${fermIcon} ${rec}${adjBadge}</div>
+          <div class="cuve-kg ${isAdj?'adj':''}">${pAdj.toFixed(3)} kg</div>
+        </div>`;
+
+      ings.forEach(i => {
+        let r = i.ratio;
+        if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) r = levainRatioOverride[rec][i.ing] / 1000;
+        const q = (r / dn) * pAdj;
+        out += `<div class="cuve-ing"><span class="cuve-ing-name">${i.ing}</span><span class="cuve-ing-qty">${q.toFixed(3)}</span></div>`;
+      });
+      out += `</div>`;
+    });
+
     return out;
   }
 
-  if (recsJ1.length && recsDirect.length) {
-    h += levSection(recsJ1, 'j1', '🌙 Levain J+1 — ce soir');
-    h += levSection(recsDirect, 'direct', '☀️ Levain Direct — demain');
+  // ─── FONCTION : HTML des levains ───
+  function levainsHTML() {
+    let out = '';
+    function renderGroup(recsList, ftype, label) {
+      if (!recsList.length) return '';
+      const ing = calcAllIngForRecs(recsList, ftype);
+      const levains = calcLevains(ing, ftype);
+      if (!Object.keys(levains).length) return '';
+      let g = `<div class="lev-group-label">${label}</div>`;
+      Object.entries(levains).forEach(([lev, data]) => {
+        g += `<div class="lev-bloc">
+          <div class="lev-head">
+            <div class="lev-name">${lev}</div>
+            <div class="lev-total">${data.total.toFixed(3)} kg</div>
+          </div>`;
+        data.compos.forEach(c => {
+          g += `<div class="lev-ing"><span>${c.ing}</span><strong>${c.qty.toFixed(3)}</strong></div>`;
+        });
+        g += `</div>`;
+      });
+      return g;
+    }
+
+    if (recsJ1.length && recsDirect.length) {
+      out += renderGroup(recsJ1, 'j1', '🌙 Ce soir (J+1)');
+      out += renderGroup(recsDirect, 'direct', '☀️ Demain matin (Direct)');
+    } else if (recsJ1.length) {
+      out += renderGroup(recsJ1, 'j1', '🌙 Ce soir (J+1)');
+    } else if (recsDirect.length) {
+      out += renderGroup(recsDirect, 'direct', '☀️ Demain matin (Direct)');
+    }
+
+    return out;
+  }
+
+  // ─── FONCTION : HTML du tableau pains ───
+  function painsTableHTML() {
+    let out = `<table class="pains-table"><thead><tr><th>Recette</th><th>Format</th>${CANAUX.map(c => `<th class="num">${c.substring(0,4)}</th>`).join('')}<th class="num">Tot</th></tr></thead><tbody>`;
+    let totalsCanaux = CANAUX.map(() => 0);
+    let tot = 0;
+    orderedRecettes.forEach(rec => {
+      (FORMATS[rec] || []).forEach(fmt => {
+        const cols = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0);
+        const t = cols.reduce((a, b) => a + b, 0);
+        if (t > 0) {
+          out += `<tr><td>${rec}</td><td>${fmt.nom}</td>${cols.map(v => `<td class="num">${v||''}</td>`).join('')}<td class="num">${t}</td></tr>`;
+          cols.forEach((v, i) => totalsCanaux[i] += v);
+          tot += t;
+        }
+      });
+    });
+    out += `<tr class="total"><td colspan="2">Total</td>${totalsCanaux.map(v => `<td class="num">${v}</td>`).join('')}<td class="num">${tot}</td></tr>`;
+    out += `</tbody></table>`;
+    return out;
+  }
+
+  // ─── FONCTION : HTML d'un bac en ligne compacte (variante A) ───
+  function bacCompactHTML(rec, bac, numGlobal) {
+    const poids = getBacPoids(bac, rec);
+    const tag = rec.substring(0, 5);
+    const fmtsStr = Object.entries(bac.formats || {})
+      .filter(([_, q]) => q > 0)
+      .map(([fmtNom, q]) => `${q}×${fmtNom}`)
+      .join(' + ');
+    return `<div class="bac-compact ${bac.prio?'prio':''}">
+      <div class="bac-compact-star">${bac.prio?'★':''}</div>
+      <div class="bac-compact-num">${numGlobal}</div>
+      <div class="bac-compact-name"><span class="bac-compact-tag">${tag}</span>${bac.label}</div>
+      <div class="bac-compact-fmts">${fmtsStr}</div>
+      <div class="bac-compact-kg">${poids.toFixed(1)}</div>
+    </div>`;
+  }
+
+  // ─── FONCTION : HTML d'un bac en mini-carte (variante B) ───
+  function bacMiniHTML(rec, bac, numGlobal) {
+    const poids = getBacPoids(bac, rec);
+    const tag = rec.substring(0, 5);
+    const fmtsStr = Object.entries(bac.formats || {})
+      .filter(([_, q]) => q > 0)
+      .map(([fmtNom, q]) => `${q}× ${fmtNom}`)
+      .join(' · ');
+    return `<div class="bac-mini ${bac.prio?'prio':''}">
+      <div class="bac-mini-head">
+        <div class="bac-mini-name">${bac.prio?'★ ':''}${numGlobal} · <span class="bac-compact-tag">${tag}</span>${bac.label}</div>
+        <div class="bac-mini-kg">${poids.toFixed(1)} kg</div>
+      </div>
+      <div class="bac-mini-content">${fmtsStr}</div>
+    </div>`;
+  }
+
+  // ─── Construction liste globale des bacs avec numérotation continue ───
+  const bacsFlat = [];
+  orderedRecettes.forEach(rec => {
+    (bacs[rec] || []).forEach(bac => {
+      bacsFlat.push({ rec, bac });
+    });
+  });
+  // Trier : prioritaires d'abord, puis ordre normal
+  bacsFlat.sort((a, b) => (b.bac.prio ? 1 : 0) - (a.bac.prio ? 1 : 0));
+
+  // ─── ASSEMBLAGE selon variante ───
+  if (!layoutB) {
+    // VARIANTE A : 3 colonnes, bacs en lignes dans col droite
+    h += `<div style="display:grid;grid-template-columns:1.1fr 0.75fr 1.15fr;gap:7px">
+      <div>
+        <div class="section-banner">Pesées des cuves</div>
+        ${cuveBlockHTML(orderedRecettes)}
+      </div>
+      <div>
+        <div class="section-banner levain">Levains à préparer</div>
+        ${levainsHTML()}
+        <div class="notes-box">
+          <strong>📝 Notes libres</strong><br><br>
+          T° labo : _______ °C<br><br>
+          T° pâte : _______ °C<br><br>
+          Cuit à : _______ °C
+        </div>
+      </div>
+      <div>
+        <div class="section-banner pains">Pains à produire</div>
+        ${painsTableHTML()}
+        ${totalBacs > 0 ? `<div class="section-banner bacs">Bacs de pointage (${totalBacs})</div>` : ''}
+        ${bacsFlat.map((b, i) => bacCompactHTML(b.rec, b.bac, i+1)).join('')}
+      </div>
+    </div>`;
   } else {
-    h += levSection(orderedRecettes, fermentation[orderedRecettes[0]]||'j1', '🌿 Levains');
+    // VARIANTE B : haut en 3 colonnes (pesées/levains/pains), bas en grille 2 cols (bacs)
+    h += `<div style="display:grid;grid-template-columns:1.2fr 0.75fr 1.05fr;gap:7px;margin-bottom:8px">
+      <div>
+        <div class="section-banner">Pesées des cuves</div>
+        ${cuveBlockHTML(orderedRecettes)}
+      </div>
+      <div>
+        <div class="section-banner levain">Levains</div>
+        ${levainsHTML()}
+      </div>
+      <div>
+        <div class="section-banner pains">Pains à produire</div>
+        ${painsTableHTML()}
+      </div>
+    </div>
+    <div class="section-banner bacs">Bacs de pointage — ${totalBacs} bacs dans l'ordre de sortie</div>
+    <div class="bacs-grid-2">
+      ${bacsFlat.map((b, i) => bacMiniHTML(b.rec, b.bac, i+1)).join('')}
+    </div>`;
   }
-
-  h += `</div>`; // fin col gauche
-
-  // ── Colonne droite : pesées ──
-  h += `<div class="col">`;
-
-  function peseeSection(recsList, ftype, label) {
-    if (!recsList.length) return;
-    h += `<h2 class="${ftype}">${label}</h2>`;
-    const cuvesFaites = new Set();
-    getParentesAvecDecli().forEach(parent => {
-      const membres = getFamille(parent).filter(r=>recsList.includes(r));
-      if (!membres.length) return;
-      cuvesFaites.add(parent);
-      const pt = membres.reduce((s,r)=>s+getPoidsRec(r),0);
-      const mult = (()=>{ for(const r of membres){ const aj=cuveAjust[r]; if(aj&&aj.enabled) return 1+aj.pct/100; } return 1; })();
-      const ptAdj = pt*mult;
-      const bi = RECETTES[parent].ingredients;
-      const refRec = membres.includes(parent)?parent:membres[0];
-      const dn = bi.reduce((s,i)=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[refRec]&&levainRatioOverride[refRec][i.ing]!==undefined) r=levainRatioOverride[refRec][i.ing]/1000; return s+r; },0);
-      const adjTxt = Math.abs(mult-1)>0.001 ? ` <span class="adj">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
-      h += `<div class="no-break"><h3>Cuve ${parent} — ${ptAdj.toFixed(3)} kg${adjTxt}</h3><table>`;
-      bi.forEach(i=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[refRec]&&levainRatioOverride[refRec][i.ing]!==undefined) r=levainRatioOverride[refRec][i.ing]/1000; h+=`<tr><td>${i.ing}</td><td>${((r/dn)*ptAdj).toFixed(3)} kg</td></tr>`; });
-      h+=`</table>`;
-      membres.forEach(rec=>{ const p=getPoidsRec(rec); const incl=RECETTES[rec].inclusions||[]; if(incl.length){ h+=`<h3 style="margin-top:2px">↳ ${rec} — ${getPoidsRecTotal(rec).toFixed(3)} kg</h3><table>`; incl.forEach(inc=>{ const q=(p/(1+inc.ratio))*inc.ratio; h+=`<tr><td>+ ${inc.ing}</td><td>${q.toFixed(3)} kg</td></tr>`; }); h+=`</table>`; } });
-      h+=`</div>`;
-    });
-    recsList.filter(rec=>!cuvesFaites.has(getParent(rec))&&!cuvesFaites.has(rec)).forEach(rec=>{
-      const p=getPoidsRec(rec); if(!p) return;
-      const ings=RECETTES[rec].ingredients||(RECETTES[getParent(rec)]||{}).ingredients||[];
-      const mult=(()=>{ const aj=cuveAjust[rec]; return aj&&aj.enabled?1+aj.pct/100:1; })();
-      const pAdj=p*mult;
-      const dn=ings.reduce((s,i)=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[rec]&&levainRatioOverride[rec][i.ing]!==undefined) r=levainRatioOverride[rec][i.ing]/1000; return s+r; },0);
-      const adjTxt = Math.abs(mult-1)>0.001 ? ` <span class="adj">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
-      h+=`<div class="no-break"><h3>${rec} — ${pAdj.toFixed(3)} kg${adjTxt}</h3><table>`;
-      ings.forEach(i=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[rec]&&levainRatioOverride[rec][i.ing]!==undefined) r=levainRatioOverride[rec][i.ing]/1000; h+=`<tr><td>${i.ing}</td><td>${((r/dn)*pAdj).toFixed(3)} kg</td></tr>`; });
-      h+=`</table></div>`;
-    });
-  }
-
-  peseeSection(recsJ1, 'j1', '🌙 Pesées J+1 — ce soir');
-  peseeSection(recsDirect, 'direct', '☀️ Pesées Direct — demain');
-  h += `</div></div>`; // fin col droite + wrap
 
   h += `</body></html>`;
-  const pfPDF = document.getElementById('print-frame');
-  pfPDF.innerHTML = h;
+
+  // Impression via print-frame (universelle, marche sur mobile)
+  const pf = document.getElementById('print-frame');
+  if (!pf) { alert('Erreur: zone impression introuvable.'); return; }
+  pf.innerHTML = h;
   window.print();
-  setTimeout(() => { pfPDF.innerHTML = ''; }, 1000);
+  setTimeout(() => { pf.innerHTML = ''; }, 1500);
 }
 
-function exportCSV() {
-  const d = today(); let csv = 'FOURNÉE DU ' + new Date().toLocaleDateString('fr-FR') + '\n\nPAINS\nRecette,Fermentation,Format,Boutique,Marché,Commandes,Autres,Total,Poids pâte crue (kg)\n';
-  orderedRecettes.forEach(rec => { (FORMATS[rec] || []).forEach(fmt => { const pc = poidsCru(rec, fmt); const vals = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0); const tot = vals.reduce((a, b) => a + b, 0); csv += `${rec},${fermentation[rec] || 'j1'},${fmt.nom},${vals.join(',')},${tot},${(tot * pc).toFixed(3)}\n`; }); });
-  csv += '\nPESÉES\n';
-  
-  function renderPeseeCSV(recsList, ftype) {
+function exportXLSX() {
+  // Utilise SheetJS (importé via CDN dans le <head>)
+  // Génère un fichier .xlsx avec 4 onglets : Résumé, Pesées, Levains, Bacs
+  if (typeof XLSX === 'undefined') {
+    showToast('Librairie XLSX non chargée — vérifier la connexion internet');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  const date = new Date().toLocaleDateString('fr-FR');
+  const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
+  const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
+
+  // ─── ONGLET 1 : RÉSUMÉ (1 ligne par format) ───
+  const resume = [
+    ['Le Fournil des Enfariné.e.s — Fournée du ' + date],
+    [],
+    ['Recette', 'Format', 'Fermentation', ...CANAUX, 'Total', 'Poids cru/pain (kg)', 'Poids total (kg)', 'Ajust. %']
+  ];
+  let totPains = 0, totKg = 0;
+  orderedRecettes.forEach(rec => {
+    const aj = cuveAjust[rec];
+    const mult = aj && aj.enabled ? 1 + aj.pct / 100 : 1;
+    const ajStr = aj && aj.enabled ? (aj.pct >= 0 ? '+' : '') + aj.pct + '%' : '—';
+    const fv = (fermentation[rec] || 'j1') === 'j1' ? 'J+1' : 'Direct';
+    (FORMATS[rec] || []).forEach(fmt => {
+      const cols = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0);
+      const tot = cols.reduce((a, b) => a + b, 0);
+      if (tot === 0) return;
+      const pc = poidsCru(rec, fmt) * mult;
+      const pTot = tot * pc;
+      resume.push([rec, fmt.nom, fv, ...cols, tot, pc.toFixed(3), pTot.toFixed(3), ajStr]);
+      totPains += tot;
+      totKg += pTot;
+    });
+  });
+  resume.push([]);
+  resume.push(['TOTAL', '', '', ...CANAUX.map(() => ''), totPains, '', totKg.toFixed(3), '']);
+  const ws1 = XLSX.utils.aoa_to_sheet(resume);
+  ws1['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 13 }, ...CANAUX.map(() => ({ wch: 8 })), { wch: 7 }, { wch: 18 }, { wch: 16 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Résumé');
+
+  // ─── ONGLET 2 : PESÉES (détail ingrédient par cuve) ───
+  const pesees = [
+    ['Détail des pesées par cuve — ' + date],
+    [],
+    ['Cuve', 'Fermentation', 'Ingrédient', 'Ratio utilisé', 'Qté brute (kg)', 'Ajustement', 'Qté finale (kg)']
+  ];
+
+  function addCuvePeseeRows(rec, parent, membres, ftype) {
+    const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
+    const mult = (() => {
+      for (const r of membres) {
+        const aj = cuveAjust[r];
+        if (aj && aj.enabled) return 1 + aj.pct / 100;
+      }
+      return 1;
+    })();
+    const ajStr = Math.abs(mult - 1) > 0.001 ? (mult > 1 ? '+' : '') + Math.round((mult - 1) * 100) + '%' : '—';
+    const ings = RECETTES[parent].ingredients;
+    const refRec = membres.includes(parent) ? parent : membres[0];
+    const dn = ings.reduce((s, i) => {
+      let r = i.ratio;
+      if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
+      return s + r;
+    }, 0);
+    const cuveName = `Cuve ${parent}`;
+    pesees.push([`--- ${cuveName} (${pt.toFixed(3)} kg base, ${(pt*mult).toFixed(3)} kg final) ---`]);
+    ings.forEach(i => {
+      let r = i.ratio;
+      if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
+      const qBrute = (r / dn) * pt;
+      const qFinal = qBrute * mult;
+      pesees.push([cuveName, ftype === 'j1' ? 'J+1' : 'Direct', i.ing, r.toFixed(3), qBrute.toFixed(3), ajStr, qFinal.toFixed(3)]);
+    });
+    // Parts (y compris nature et déclinaisons)
+    membres.forEach(m => {
+      const p = getPoidsRec(m);
+      const pAdj = p * mult;
+      const incl = RECETTES[m].inclusions || [];
+      if (incl.length === 0) {
+        pesees.push([`  ↳ Part ${m}`, '', '(sans inclusion)', '', '', '', pAdj.toFixed(3)]);
+      } else {
+        pesees.push([`  ↳ Part ${m}`, '', '', '', '', '', pAdj.toFixed(3)]);
+        incl.forEach(inc => {
+          const qInc = (p / (1 + inc.ratio)) * inc.ratio * mult;
+          pesees.push([`  ↳ Part ${m}`, '', '+ ' + inc.ing, inc.ratio.toFixed(3), '', ajStr, qInc.toFixed(3)]);
+        });
+      }
+    });
+  }
+
+  function addRecettePeseeRows(rec, ftype) {
+    const p = getPoidsRec(rec);
+    if (!p) return;
+    const mult = (() => { const aj = cuveAjust[rec]; return aj && aj.enabled ? 1 + aj.pct / 100 : 1; })();
+    const pAdj = p * mult;
+    const ajStr = Math.abs(mult - 1) > 0.001 ? (mult > 1 ? '+' : '') + Math.round((mult - 1) * 100) + '%' : '—';
+    const ings = RECETTES[rec].ingredients || [];
+    const dn = ings.reduce((s, i) => {
+      let r = i.ratio;
+      if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) r = levainRatioOverride[rec][i.ing] / 1000;
+      return s + r;
+    }, 0);
+    pesees.push([`--- ${rec} (${pAdj.toFixed(3)} kg final) ---`]);
+    ings.forEach(i => {
+      let r = i.ratio;
+      if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) r = levainRatioOverride[rec][i.ing] / 1000;
+      const qBrute = (r / dn) * p;
+      const qFinal = qBrute * mult;
+      pesees.push([rec, ftype === 'j1' ? 'J+1' : 'Direct', i.ing, r.toFixed(3), qBrute.toFixed(3), ajStr, qFinal.toFixed(3)]);
+    });
+  }
+
+  // Traiter J+1 puis Direct
+  ['j1', 'direct'].forEach(ftype => {
+    const recsList = ftype === 'j1' ? recsJ1 : recsDirect;
+    if (!recsList.length) return;
     const cuvesFaites = new Set();
     getParentesAvecDecli().forEach(parent => {
       const membres = getFamille(parent).filter(r => recsList.includes(r));
       if (!membres.length) return;
       cuvesFaites.add(parent);
-      const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
-      const bi = RECETTES[parent].ingredients;
-      const refRec = membres.includes(parent) ? parent : membres[0];
-      const dn = bi.reduce((s, i) => {
-          let ratio = i.ratio;
-          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) ratio = levainRatioOverride[refRec][i.ing] / 1000;
-          return s + ratio;
-      }, 0);
-      csv += `Cuve ${parent} [${ftype}],${pt.toFixed(3)} kg\n`;
-      bi.forEach(i => {
-          let ratio = i.ratio;
-          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) ratio = levainRatioOverride[refRec][i.ing] / 1000;
-          csv += `,${i.ing},${((ratio / dn) * pt).toFixed(3)}\n`; 
-      });
-      membres.forEach(rec => {
-        const p = getPoidsRec(rec);
-        csv += `${rec} (part prélevée),${p.toFixed(3)} kg\n`;
-        (RECETTES[rec].inclusions || []).forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; csv += `,+ ${inc.ing},${q.toFixed(3)}\n`; });
-      });
+      addCuvePeseeRows(null, parent, membres, ftype);
     });
-    
     recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
-      const p = getPoidsRec(rec); if (!p) return;
-      const ings = RECETTES[rec].ingredients || (RECETTES[getParent(rec)] || {}).ingredients || [];
-      const dn = ings.reduce((s, i) => {
-          let ratio = i.ratio;
-          if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) ratio = levainRatioOverride[rec][i.ing] / 1000;
-          return s + ratio;
-      }, 0);
-      csv += `${rec} [${ftype}],${p.toFixed(3)} kg\n`;
-      ings.forEach(i => {
-          let ratio = i.ratio;
-          if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) ratio = levainRatioOverride[rec][i.ing] / 1000;
-          csv += `,${i.ing},${((ratio / dn) * p).toFixed(3)}\n`; 
-      });
+      addRecettePeseeRows(rec, ftype);
     });
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(pesees);
+  ws2['!cols'] = [{ wch: 24 }, { wch: 13 }, { wch: 20 }, { wch: 14 }, { wch: 15 }, { wch: 12 }, { wch: 15 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Pesées');
+
+  // ─── ONGLET 3 : LEVAINS ───
+  const levains = [
+    ['Levains à préparer — ' + date],
+    [],
+    ['Fermentation', 'Levain', 'Ingrédient', 'Ratio utilisé', 'Quantité (kg)']
+  ];
+  function addLevainRows(recsList, ftype, label) {
+    if (!recsList.length) return;
+    const ing = calcAllIngForRecs(recsList, ftype);
+    const levs = calcLevains(ing, ftype);
+    if (!Object.keys(levs).length) return;
+    levains.push([`--- ${label} ---`]);
+    let total = 0;
+    Object.entries(levs).forEach(([lev, data]) => {
+      const c = LEVAINS[lev] || [];
+      const getR = (item) => {
+        if (ftype === 'j1' && item.ratioJ1 !== undefined) return item.ratioJ1;
+        if (ftype === 'direct' && item.ratioDirect !== undefined) return item.ratioDirect;
+        return item.ratio;
+      };
+      const s = c.reduce((x, i) => x + getR(i), 0);
+      c.forEach(item => {
+        const q = (getR(item) / s) * data.total;
+        levains.push([ftype === 'j1' ? 'J+1' : 'Direct', lev, item.ing, getR(item).toFixed(3), q.toFixed(3)]);
+      });
+      total += data.total;
+    });
+    levains.push(['', '', '', 'Sous-total ' + label, total.toFixed(3)]);
   }
+  if (recsJ1.length && recsDirect.length) {
+    addLevainRows(recsJ1, 'j1', '🌙 J+1 — ce soir');
+    addLevainRows(recsDirect, 'direct', '☀️ Direct — demain matin');
+  } else if (recsJ1.length) {
+    addLevainRows(recsJ1, 'j1', '🌙 J+1');
+  } else if (recsDirect.length) {
+    addLevainRows(recsDirect, 'direct', '☀️ Direct');
+  }
+  const ws3 = XLSX.utils.aoa_to_sheet(levains);
+  ws3['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 22 }, { wch: 14 }, { wch: 15 }];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Levains');
 
-  const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
-  const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
-  if (recsJ1.length) { csv += `\n--- Ce soir (J+1) ---\n`; renderPeseeCSV(recsJ1, 'j1'); }
-  if (recsDirect.length) { csv += `\n--- Demain matin (Direct) ---\n`; renderPeseeCSV(recsDirect, 'direct'); }
+  // ─── ONGLET 4 : BACS ───
+  const bacsSheet = [
+    ['Répartition en bacs de pointage — ' + date],
+    [],
+    ['Ordre', 'Priorité', 'Recette', 'Nom du bac', 'Fermentation', 'Format', 'Nb pâtons', 'Poids format (kg)', 'Total bac (kg)']
+  ];
+  const bacsFlat = [];
+  orderedRecettes.forEach(rec => {
+    (bacs[rec] || []).forEach(bac => bacsFlat.push({ rec, bac }));
+  });
+  bacsFlat.sort((a, b) => (b.bac.prio ? 1 : 0) - (a.bac.prio ? 1 : 0));
+  let totBacs = 0;
+  bacsFlat.forEach((entry, idx) => {
+    const { rec, bac } = entry;
+    const inclRatio = ((RECETTES[rec] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
+    const total = getBacPoids(bac, rec);
+    const fmts = FORMATS[rec] || [];
+    const fv = (fermentation[rec] || 'j1') === 'j1' ? 'J+1' : 'Direct';
+    const fmtRows = Object.entries(bac.formats || {}).filter(([_, q]) => q > 0);
+    fmtRows.forEach(([fmtNom, qte], rowIdx) => {
+      const fmt = fmts.find(f => f.nom === fmtNom);
+      if (!fmt) return;
+      const pPate = fmt.poidsCuit / (1 - ((RECETTES[rec] || {}).perte || 0.12));
+      const pUnit = pPate * (1 + inclRatio);
+      bacsSheet.push([
+        rowIdx === 0 ? idx + 1 : '',
+        rowIdx === 0 ? (bac.prio ? '★ Oui' : '—') : '',
+        rowIdx === 0 ? rec : '',
+        rowIdx === 0 ? bac.label : '',
+        rowIdx === 0 ? fv : '',
+        fmtNom,
+        qte,
+        (qte * pUnit).toFixed(3),
+        rowIdx === 0 ? total.toFixed(3) : ''
+      ]);
+    });
+    totBacs += total;
+  });
+  bacsSheet.push([]);
+  bacsSheet.push(['', '', '', '', '', '', '', 'TOTAL (' + bacsFlat.length + ' bacs)', totBacs.toFixed(3)]);
+  const ws4 = XLSX.utils.aoa_to_sheet(bacsSheet);
+  ws4['!cols'] = [{ wch: 7 }, { wch: 10 }, { wch: 14 }, { wch: 18 }, { wch: 13 }, { wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Bacs');
 
-  const allIng = calcAllIng(); const levains = calcLevains(allIng);
-  if (Object.keys(levains).length) { csv += '\nLEVAINS\n'; Object.entries(levains).forEach(([lev, data]) => { csv += `${lev},${data.total.toFixed(3)} kg\n`; data.compos.forEach(c => { csv += `,${c.ing},${c.qty.toFixed(3)}\n`; }); }); }
-  dl(csv, 'fournee_' + d + '.csv');
+  // ─── TÉLÉCHARGEMENT ───
+  const dateSafe = date.replace(/\//g, '-');
+  XLSX.writeFile(wb, `Fournée ${dateSafe}.xlsx`);
+  showToast('Fichier .xlsx téléchargé ✓');
 }
 
-function exportOdoo() {
-  const allIng = calcAllIng(); const d = today(); let csv = 'product_name,qty_done,product_uom,origin\n';
-  Object.entries(allIng).forEach(([k, v]) => { if (v > 0.001) csv += `${k},${v.toFixed(3)},kg,Fournée ${d}\n`; });
-  orderedRecettes.forEach(rec => { const n = getTotalPains(rec); if (n > 0) csv += `${rec},${n},unité,Fournée ${d}\n`; });
-  dl(csv, 'odoo_mo_' + d + '.csv');
-}
 
 // ── 13. CLOUD ET MODALES ──
 function renderSavedList(data) {
@@ -2110,8 +2518,7 @@ document.getElementById('ajust-modal-confirm').addEventListener('click', () => {
 document.getElementById('exp-fiche-journee').addEventListener('click', printFicheJournee);
 
 document.getElementById('exp-pdf').addEventListener('click', exportPDF);
-document.getElementById('exp-csv').addEventListener('click', exportCSV);
-document.getElementById('exp-odoo').addEventListener('click', exportOdoo);
+document.getElementById('exp-xlsx').addEventListener('click', exportXLSX);
 
 // ── Exposer sur window les fonctions appelées via onclick inline dans le HTML ──
 // Nécessaire car le script est de type="module" (scope fermé par défaut)
@@ -2544,71 +2951,213 @@ function printFicheBac(recNom, idx) {
 }
 
 function printAllFiches() {
-  // Générer une seule page avec toutes les fiches (évite le blocage multi-popup)
   const date = new Date().toLocaleDateString('fr-FR');
-  let allHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fiches bacs — ${date}</title>
-  <style>
-    body{font-family:Georgia,serif;font-size:12px;color:#36281A;padding:0;margin:0}
-    .fiche{max-width:580px;margin:0 auto;padding:20px;page-break-after:always}
-    .fiche:last-child{page-break-after:auto}
-    h1{font-size:30px;margin:0}h2{font-size:16px;color:#C73600;margin:3px 0 0}
-    .tags{display:flex;gap:6px;margin:8px 0}.tag{padding:3px 9px;border-radius:4px;font-size:10px;font-weight:700}
-    .t1{background:#36281A;color:#EFEDD8}.t2{background:#E0D8C0;color:#36281A}.t3{background:#FAF0EE;color:#C73600}
-    table{width:100%;border-collapse:collapse;margin:8px 0}
-    th{background:#EFEDD8;padding:5px 7px;font-size:10px;font-weight:700;text-align:left}
-    th:last-child{text-align:right}
-    td{padding:6px 7px;border-top:1px solid #E0D8C0;font-size:12px}
-    td.r{text-align:right;font-weight:700}td.c{text-align:center;font-size:18px;font-weight:700}
-    .tot td{background:#EFEDD8;font-weight:700;border-top:2px solid #36281A}
-    .notes{background:#FAF8F0;border:1px solid #E0D8C0;border-radius:6px;padding:9px 11px;margin-top:8px;font-size:11px;line-height:1.7;white-space:pre-wrap}
-    .sep{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:9px;border-bottom:2px solid #36281A;margin-bottom:9px}
-    .kg-block{text-align:right}.kg-val{font-size:26px;font-weight:700}.kg-lbl{font-size:9px;color:#AE7D66;font-weight:600;text-transform:uppercase}
-    footer{font-size:9px;color:#AE7D66;text-align:center;border-top:1px solid #E0D8C0;padding-top:7px;margin-top:12px}
-    @media print{body{padding:0}.fiche{padding:12px}}
-  </style></head><body>`;
 
-  let hasAny = false;
-  [...selectedRecettes].forEach(rec => {
-    (bacs[rec] || []).forEach((bac, idx) => {
-      const poids = getBacPoids(bac, rec);
-      const fv = (fermentation[rec] || 'j1') === 'j1' ? '🌙 J+1' : '☀️ Direct';
-      const notes = (RECETTES[rec] || {}).notes || '';
-      let rows = '', totalPains = 0;
-      Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
-        if (!qte) return;
-        const fmt = (FORMATS[rec] || []).find(f => f.nom === fmtNom);
-        const pu = fmt ? fmt.poidsCuit / (1 - ((RECETTES[rec] || {}).perte || 0.12)) : 0;
-        rows += `<tr><td>${fmtNom}</td><td class="c">${qte}</td><td class="r">${(qte*pu).toFixed(3)} kg</td></tr>`;
-        totalPains += qte;
-      });
-      allHTML += `<div class="fiche">
-        <div class="sep">
-          <div><h1>${bac.prio ? '★ ' : ''}Bac ${idx + 1}</h1><h2>${bac.label}</h2></div>
-          <div class="kg-block"><div class="kg-val">${poids.toFixed(3)} kg</div><div class="kg-lbl">pâte crue</div></div>
+  // Filtrer les recettes qui ont au moins un bac
+  const recsWithBacs = orderedRecettes.filter(rec => (bacs[rec] || []).length > 0);
+  if (!recsWithBacs.length) {
+    showToast('Aucun bac défini pour les recettes sélectionnées');
+    return;
+  }
+
+  // Déterminer quelles recettes peuvent être condensées (1-2 bacs + notes courtes)
+  // Règle : si la recette a 1-2 bacs ET pas de notes OU notes courtes (<100 chars), elle peut partager
+  function canCondense(rec) {
+    const nbBacs = (bacs[rec] || []).length;
+    const notes = (RECETTES[rec] || {}).notes || '';
+    return nbBacs <= 2 && notes.length < 100;
+  }
+
+  // Grouper les recettes : les "condensables" ensemble (2 par page), les grosses seules
+  const pages = [];   // chaque entrée = [rec] ou [rec1, rec2]
+  let i = 0;
+  while (i < recsWithBacs.length) {
+    const rec = recsWithBacs[i];
+    if (canCondense(rec) && i + 1 < recsWithBacs.length && canCondense(recsWithBacs[i+1])) {
+      // 2 recettes condensables sur la même page
+      pages.push([rec, recsWithBacs[i+1]]);
+      i += 2;
+    } else {
+      // 1 seule recette sur la page
+      pages.push([rec]);
+      i += 1;
+    }
+  }
+
+  // ─── CSS commun ───
+  const css = `
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    html,body{margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#36281A}
+    .page{padding:12mm;display:flex;flex-direction:column;min-height:100vh;page-break-after:always}
+    .page:last-child{page-break-after:auto}
+    .rec-block{display:flex;flex-direction:column;margin-bottom:12px}
+    .rec-block:last-child{margin-bottom:0}
+    .page-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #36281A;padding-bottom:8px;margin-bottom:10px}
+    .rec-title{font-family:Georgia,serif;font-size:36px;font-weight:800;color:#36281A;line-height:1}
+    .rec-title.condensed{font-size:26px}
+    .rec-meta{font-size:12px;color:#666;margin-top:4px}
+    .rec-meta strong{color:#36281A}
+    .ferm-pill{display:inline-block;padding:3px 10px;border-radius:16px;font-size:11px;font-weight:700;margin-left:6px}
+    .ferm-pill.j1{background:#36281A;color:#EFEDD8}
+    .ferm-pill.direct{background:#C73600;color:white}
+    .rec-stats{text-align:right;display:flex;gap:10px;align-items:center}
+    .stat-chip{text-align:center;background:#FAF8F0;border:1.5px solid #E0D8C0;padding:6px 12px;border-radius:6px}
+    .stat-chip-val{font-size:22px;font-weight:800;font-family:Georgia,serif;color:#36281A;line-height:1}
+    .stat-chip-lbl{font-size:9px;text-transform:uppercase;color:#AE7D66;margin-top:2px;letter-spacing:0.5px}
+    .notes-block{background:#FAF0EE;border-left:4px solid #C73600;padding:8px 12px;margin-bottom:12px;font-size:12px;line-height:1.5}
+    .notes-block-title{font-size:9px;font-weight:700;color:#C73600;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+    .notes-block-text{white-space:pre-wrap}
+    .bacs-grid{display:grid;gap:8px}
+    .bacs-grid.cols-1{grid-template-columns:1fr}
+    .bacs-grid.cols-2{grid-template-columns:repeat(2,1fr)}
+    .bacs-grid.cols-3{grid-template-columns:repeat(3,1fr)}
+    .bac{border:2px solid #D1B7A7;border-radius:8px;padding:10px;background:white;display:flex;flex-direction:column;break-inside:avoid;position:relative}
+    .bac.prio{border-color:#C73600;border-width:3px;background:linear-gradient(to right,#FEF5F0 0%,white 20%)}
+    .bac-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+    .bac-num-big{font-family:Georgia,serif;font-size:44px;font-weight:800;color:#36281A;line-height:0.9;min-width:60px}
+    .bac.prio .bac-num-big{color:#C73600}
+    .bac-star{font-size:20px;color:#C73600;vertical-align:top;line-height:0.9}
+    .bac-info{flex:1}
+    .bac-label{font-size:16px;font-weight:700;color:#36281A;margin-bottom:2px}
+    .bac-sub{font-size:10px;color:#AE7D66;text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
+    .bac-kg-chip{text-align:right}
+    .bac-kg-val{font-size:18px;font-weight:800;font-family:Georgia,serif;color:#36281A}
+    .bac-kg-lbl{font-size:8px;text-transform:uppercase;color:#AE7D66}
+    .bac-fmts{border-top:1px dashed #D1B7A7;padding-top:6px}
+    .bac-fmt-row{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;font-size:13px;border-bottom:1px solid #f3eee4}
+    .bac-fmt-row:last-child{border-bottom:none}
+    .bac-fmt-left{display:flex;gap:8px;align-items:baseline}
+    .bac-fmt-qty{font-family:Georgia,serif;font-size:22px;font-weight:800;color:#36281A;min-width:30px}
+    .bac-fmt-name{font-size:11px;color:#555}
+    .bac-fmt-weight{font-size:10px;color:#999}
+    .condensed-sep{border-top:2px dashed #D1B7A7;margin:12px 0}
+    .page-footer{margin-top:auto;padding-top:6px;border-top:1px solid #E0D8C0;display:flex;justify-content:space-between;font-size:9px;color:#AE7D66}
+    @page{size:A4 portrait;margin:0}
+  `;
+
+  let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fiches bacs — ${date}</title><style>${css}</style></head><body>`;
+
+  // ─── FONCTION : HTML d'un bac ───
+  function bacCardHTML(rec, bac, numLocal) {
+    const poids = getBacPoids(bac, rec);
+    const fmts = FORMATS[rec] || [];
+    const inclRatio = ((RECETTES[rec] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
+
+    const fmtRows = Object.entries(bac.formats || {})
+      .filter(([_, q]) => q > 0)
+      .map(([fmtNom, qte]) => {
+        const fmt = fmts.find(f => f.nom === fmtNom);
+        if (!fmt) return '';
+        const pPate = fmt.poidsCuit / (1 - ((RECETTES[rec] || {}).perte || 0.12));
+        const pTotal = pPate * (1 + inclRatio);
+        const pGrammes = Math.round(pTotal * 1000);
+        return `<div class="bac-fmt-row">
+          <div class="bac-fmt-left">
+            <span class="bac-fmt-qty">${qte}</span>
+            <span class="bac-fmt-name">× ${fmtNom}</span>
+          </div>
+          <span class="bac-fmt-weight">${pGrammes}g cru / pâton${inclRatio > 0 ? ' (incl.)' : ''}</span>
+        </div>`;
+      }).join('');
+
+    return `<div class="bac ${bac.prio?'prio':''}">
+      <div class="bac-top">
+        <div class="bac-num-big">${bac.prio?'<span class="bac-star">★</span>':''}${numLocal}</div>
+        <div class="bac-info">
+          <div class="bac-label">${bac.label}</div>
+          <div class="bac-sub">${bac.prio?'Sortir en premier':'Ordre normal'}</div>
         </div>
-        <div class="tags">
-          <span class="tag t1">${rec}</span>
-          <span class="tag t2">${fv}</span>
-          ${bac.prio ? '<span class="tag t3">★ Sortir en premier</span>' : ''}
+        <div class="bac-kg-chip">
+          <div class="bac-kg-val">${poids.toFixed(1)}</div>
+          <div class="bac-kg-lbl">kg</div>
         </div>
-        <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#AE7D66;margin:10px 0 4px;font-weight:700">Contenu — uniquement ${rec}</div>
-        <table><tr><th>Format</th><th style="text-align:center">Nb</th><th style="text-align:right">Poids cru</th></tr>
-        ${rows}
-        <tr class="tot"><td>Total</td><td class="c">${totalPains}</td><td class="r">${poids.toFixed(3)} kg</td></tr></table>
-        ${notes ? `<div class="notes">${notes}</div>` : ''}
-        <footer>Le Fournil des Enfariné.e.s · ${date}</footer>
+      </div>
+      <div class="bac-fmts">${fmtRows}</div>
+    </div>`;
+  }
+
+  // ─── FONCTION : HTML du bloc complet d'une recette ───
+  function recBlockHTML(rec, condensed, pageNum, totalPages) {
+    const bacList = bacs[rec] || [];
+    if (!bacList.length) return '';
+
+    // Trier : prio d'abord
+    const sorted = [...bacList].sort((a, b) => (b.prio?1:0) - (a.prio?1:0));
+
+    const totalPains = bacList.reduce((s, b) =>
+      s + Object.values(b.formats || {}).reduce((a, v) => a + v, 0), 0);
+    const totalKg = bacList.reduce((s, b) => s + getBacPoids(b, rec), 0);
+    const fv = (fermentation[rec] || 'j1') === 'j1' ? '🌙 J+1' : '☀️ Direct';
+    const fvClass = (fermentation[rec] || 'j1') === 'j1' ? 'j1' : 'direct';
+    const notes = (RECETTES[rec] || {}).notes || '';
+
+    // Grille selon nombre de bacs : 1 col si 1 bac, 2 cols si 2-4 bacs, 3 cols si 5+
+    const nbBacs = bacList.length;
+    const gridCols = nbBacs === 1 ? 'cols-1' : nbBacs <= 4 ? 'cols-2' : 'cols-3';
+
+    let block = `<div class="rec-block">
+      <div class="page-header">
+        <div>
+          <div class="rec-title ${condensed?'condensed':''}">${rec}</div>
+          <div class="rec-meta">
+            <strong>${totalKg.toFixed(1)} kg pâte crue</strong> · ${nbBacs} bac${nbBacs>1?'s':''}
+            <span class="ferm-pill ${fvClass}">${fv}</span>
+          </div>
+        </div>
+        <div class="rec-stats">
+          <div class="stat-chip">
+            <div class="stat-chip-val">${totalPains}</div>
+            <div class="stat-chip-lbl">Pains total</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-chip-val">${totalKg.toFixed(1)}</div>
+            <div class="stat-chip-lbl">Kg pâte</div>
+          </div>
+        </div>
       </div>`;
-      hasAny = true;
+
+    if (notes) {
+      block += `<div class="notes-block">
+        <div class="notes-block-title">Notes façonnage</div>
+        <div class="notes-block-text">${notes}</div>
+      </div>`;
+    }
+
+    block += `<div class="bacs-grid ${gridCols}">`;
+    sorted.forEach((bac, idx) => {
+      block += bacCardHTML(rec, bac, idx + 1);
     });
+    block += `</div></div>`;
+
+    return block;
+  }
+
+  // ─── Génération des pages ───
+  pages.forEach((pageRecs, idx) => {
+    h += `<div class="page">`;
+    const condensed = pageRecs.length > 1;
+    pageRecs.forEach((rec, idxInPage) => {
+      h += recBlockHTML(rec, condensed, idx + 1, pages.length);
+      if (condensed && idxInPage < pageRecs.length - 1) {
+        h += `<div class="condensed-sep"></div>`;
+      }
+    });
+    h += `<div class="page-footer">
+      <span>Le Fournil des Enfariné.e.s</span>
+      <span>Fournée du ${date} · Page ${idx + 1}/${pages.length}</span>
+    </div>`;
+    h += `</div>`;
   });
 
-  if (!hasAny) { showToast('Aucun bac défini — configure les bacs d\'abord'); return; }
-  allHTML += '</body></html>';
-  // Blob link — contourne les popup blockers sur mobile
-  const pf2 = document.getElementById('print-frame');
-  pf2.innerHTML = allHTML;
+  h += `</body></html>`;
+
+  // Impression via print-frame
+  const pf = document.getElementById('print-frame');
+  if (!pf) { alert('Erreur: zone impression introuvable.'); return; }
+  pf.innerHTML = h;
   window.print();
-  setTimeout(() => { pf2.innerHTML = ''; }, 1000);
+  setTimeout(() => { pf.innerHTML = ''; }, 1500);
 }
 
 // Persister bacs + cuveAjust dans les fournées sauvegardées
