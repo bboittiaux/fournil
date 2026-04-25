@@ -1252,35 +1252,52 @@ function calcAllIngForRecs(recsList, ftype) {
   }
 
   // ── Boucle 1 : cuves groupées (familles avec déclinaisons) ──
-  // Ex : Campagne + Graines + Noix + Figues dans la même cuve.
   //
-  // RÈGLE MÉTIER IMPORTANTE :
-  // Une cuve est pétrie en une seule fois avec un seul dosage de levain.
-  // On ne peut pas séparer le levain de Campagne de celui de Graines —
-  // c'est physiquement la même pâte. Si on filtrait les membres par ftype,
-  // le levain calculé pour J+1 ne couvrirait qu'une partie de la cuve,
-  // créant une divergence avec les pesées réelles.
+  // RÈGLE MÉTIER : les membres d'une famille peuvent être dans des cuves
+  // différentes si leurs fermentations diffèrent.
   //
-  // Solution : calculer le levain sur TOUS les membres sélectionnés
-  // (quelle que soit leur fermentation), mais uniquement si la cuve
-  // apparaît dans la recsList (= si au moins un membre est dans recsList).
+  // Exemple :
+  //   Tous J+1 → 1 cuve J+1 (Campagne + Graines + Noix + Figues)
+  //   Graines Direct, reste J+1 → 2 cuves :
+  //     Cuve J+1 : Campagne + Noix + Figues
+  //     Cuve Direct : Graines seule
+  //
+  // Algorithme :
+  //   1. Prendre tous les membres sélectionnés de la famille
+  //   2. Les grouper par fermentation
+  //   3. Parmi ces groupes, ne traiter que ceux qui correspondent à ftype
+  //   4. Chaque groupe = une cuve distincte avec son propre calcul
+  //
+  // Si un seul groupe (même fermentation pour tous) → comportement identique à avant.
+  const cuvesFamillesTraitees = new Set();
   getParentesAvecDecli().forEach(parent => {
-    // Membres dans la recsList (filtre par fermentation)
-    const membresFiltres = getFamille(parent).filter(x => recsList.includes(x));
-    if (!membresFiltres.length) return; // Cette cuve n'est pas concernée par cette fermentation
-
-    // Tous les membres sélectionnés (toutes fermentations)
-    // → sert à calculer le poids total de la cuve (physiquement indivisible)
     const tousLesMembres = getFamille(parent).filter(x => selectedRecettes.has(x));
-    const pt = tousLesMembres.reduce((s, x) => s + getPoidsRec(x), 0);
-    const mult = getMult(tousLesMembres);
+    if (!tousLesMembres.length) return;
+    if (cuvesFamillesTraitees.has(parent)) return;
+    cuvesFamillesTraitees.add(parent);
+
+    // Grouper les membres par fermentation
+    const groupeParFerm = {};
+    tousLesMembres.forEach(rec => {
+      const f = fermentation[rec] || 'j1';
+      if (!groupeParFerm[f]) groupeParFerm[f] = [];
+      groupeParFerm[f].push(rec);
+    });
+
+    // Traiter uniquement le groupe qui correspond au ftype demandé
+    const membresFtype = groupeParFerm[ftype] || [];
+    if (!membresFtype.length) return; // Pas de membres de cette fermentation dans cette famille
+
+    // Calculer le poids total de CE groupe (cuve physique)
+    const pt = membresFtype.reduce((s, x) => s + getPoidsRec(x), 0);
+    const mult = getMult(membresFtype);
     const bi = RECETTES[parent].ingredients;
-    const refRec = tousLesMembres.includes(parent) ? parent : tousLesMembres[0];
+    const refRec = membresFtype.includes(parent) ? parent : membresFtype[0];
     const dn = bi.reduce((s, i) => s + getRatio(refRec, i), 0);
     bi.forEach(i => add(i.ing, (getRatio(refRec, i) / dn) * pt * mult));
 
-    // Les inclusions sont propres à chaque déclinaison → on prend TOUS les membres
-    tousLesMembres.forEach(rec => {
+    // Inclusions : propres à chaque déclinaison du groupe
+    membresFtype.forEach(rec => {
       const p = getPoidsRec(rec);
       (RECETTES[rec].inclusions || []).forEach(inc => {
         add(inc.ing, (p / (1 + inc.ratio)) * inc.ratio * mult);
@@ -1427,18 +1444,29 @@ function renderResume() {
     }
     const cuvesFaites = new Set();
     getParentesAvecDecli().forEach(parent => {
-      const membres = getFamille(parent).filter(r => recsList.includes(r));
+      // Membres de cette famille, filtrés par le ftype en cours
+      // → permet d'afficher des cuves séparées si Graines=Direct et Campagne=J+1
+      const tousMembresSel = getFamille(parent).filter(r => selectedRecettes.has(r));
+      if (!tousMembresSel.length) return;
+      const membres = tousMembresSel.filter(r => (fermentation[r] || 'j1') === ftype);
       if (!membres.length) return;
       cuvesFaites.add(parent);
+      // Nom de la cuve : préciser J+1/Direct si les membres sont répartis
+      const tousMembresMemeGroupe = tousMembresSel.every(r => (fermentation[r] || 'j1') === ftype);
+      const cuveSuffix = tousMembresMemeGroupe ? '' : ` (${ftype === 'j1' ? 'J+1' : 'Direct'})`;
       const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
       const bi = RECETTES[parent].ingredients;
       const refRec = membres.includes(parent) ? parent : membres[0];
-      const dn = bi.reduce((s, i) => s + i.ratio, 0);
+      const dn = bi.reduce((s, i) => {
+        let r = i.ratio;
+        if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
+        return s + r;
+      }, 0);
       const multCuve = getMultForRecs(membres);
       const ptAdj = pt * multCuve;
       const isAdj = Math.abs(multCuve - 1) > 0.001;
       const adjLabel = isAdj ? ` <span class="adj-badge">${multCuve > 1 ? '+' : ''}${Math.round((multCuve-1)*100)}%</span>` : '';
-      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}" data-goto-bac="${membres[0]}" style="cursor:pointer" title="Voir les bacs →"><div class="ferm-bloc-title">Cuve ${parent}${adjLabel} <span style="font-size:11px;opacity:0.75">↗ bacs</span></div><div class="ferm-bloc-sub">${isAdj ? `<span style="text-decoration:line-through;opacity:0.6">${pt.toFixed(3)}</span> ` : ''}${ptAdj.toFixed(3)} kg pâte totale</div></div><div class="ferm-bloc-steps">`;
+      let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}" data-goto-bac="${membres[0]}" style="cursor:pointer" title="Voir les bacs →"><div class="ferm-bloc-title">Cuve ${parent}${cuveSuffix}${adjLabel} <span style="font-size:11px;opacity:0.75">↗ bacs</span></div><div class="ferm-bloc-sub">${isAdj ? `<span style="text-decoration:line-through;opacity:0.6">${pt.toFixed(3)}</span> ` : ''}${ptAdj.toFixed(3)} kg pâte totale</div></div><div class="ferm-bloc-steps">`;
       h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${membres.map(r => `<span class="ferm-tag">${r}</span>`).join('')} · ${pt.toFixed(3)} kg</div></div></div>`;
       bi.forEach(i => {
         // Appliquer levainRatioOverride si défini pour la recette de référence
