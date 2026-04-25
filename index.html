@@ -1155,6 +1155,9 @@ function getPoidsRecTotal(rec) {
 function getTotalPains(rec) { let n = 0; (FORMATS[rec] || []).forEach(fmt => { CANAUX.forEach(c => { n += qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0; }); }); return n; }
 
 function calcAllIng() {
+  // OBSOLÈTE — non utilisée directement. Remplacée par calcAllIngForRecs()
+  // qui applique en plus cuveAjust et accepte un sous-ensemble de recettes.
+  // Conservée pour compatibilité en cas d'usage futur.
   const r = {}; const add = (i, v) => { r[i] = (r[i] || 0) + v; };
 
   function getRatioIng(rec, item) {
@@ -1223,55 +1226,90 @@ function calcLevains(allIng, ftype) {
  * Utilisé pour séparer les levains J+1 / Direct.
  */
 function calcAllIngForRecs(recsList, ftype) {
-  const r = {}; const add = (i, v) => { r[i] = (r[i] || 0) + v; };
+  // Calcule les ingrédients cumulés pour un sous-ensemble de recettes.
+  // Aligné exactement sur calcAllIng() avec en plus :
+  // - ftype : 'j1' ou 'direct' pour choisir le bon ratio de levain
+  // - cuveAjust appliqué via getMult()
+  const r = {}; const add = (ing, v) => { r[ing] = (r[ing] || 0) + v; };
 
+  // Retourne le ratio d'un ingrédient pour une recette donnée.
+  // Priorité : override manuel > ratio de base (ftype géré dans calcLevains)
   function getRatio(rec, item) {
-    // 1. Override manuel de la saisie (levainRatioOverride) — priorité max
     if (LEVAINS[item.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][item.ing] !== undefined) {
       return levainRatioOverride[rec][item.ing] / 1000;
-    }
-    // 2. Ratio par fermentation configuré dans l'éditeur levain
-    if (LEVAINS[item.ing] && ftype) {
-      const levCompo = LEVAINS[item.ing];
-      // On ne peut pas retrouver le composant individuel ici, on compare par ing
-      // Le ratio global du levain dans la recette (item.ratio) × le ratio de fermentation
-      // est géré dans calcLevains, pas ici. Ici on retourne juste item.ratio.
     }
     return item.ratio;
   }
 
-  function getMult(rec) {
-    const aj = cuveAjust[rec];
-    if (aj && aj.enabled) return 1 + aj.pct / 100;
+  // Retourne le multiplicateur d'ajustement pour un groupe de recettes.
+  // Prend le premier ajustement actif trouvé dans le groupe.
+  function getMult(membres) {
+    for (const rec of membres) {
+      const aj = cuveAjust[rec];
+      if (aj && aj.enabled) return 1 + aj.pct / 100;
+    }
     return 1;
   }
 
-  // Cuves groupées (familles)
+  // ── Boucle 1 : cuves groupées (familles avec déclinaisons) ──
+  // Ex : Campagne + Graines + Noix + Figues dans la même cuve.
+  //
+  // RÈGLE MÉTIER IMPORTANTE :
+  // Une cuve est pétrie en une seule fois avec un seul dosage de levain.
+  // On ne peut pas séparer le levain de Campagne de celui de Graines —
+  // c'est physiquement la même pâte. Si on filtrait les membres par ftype,
+  // le levain calculé pour J+1 ne couvrirait qu'une partie de la cuve,
+  // créant une divergence avec les pesées réelles.
+  //
+  // Solution : calculer le levain sur TOUS les membres sélectionnés
+  // (quelle que soit leur fermentation), mais uniquement si la cuve
+  // apparaît dans la recsList (= si au moins un membre est dans recsList).
   getParentesAvecDecli().forEach(parent => {
-    const membres = getFamille(parent).filter(x => recsList.includes(x));
-    if (!membres.length) return;
-    const pt = membres.reduce((s, x) => s + getPoidsRec(x), 0);
-    const mult = getMult(membres[0]);
+    // Membres dans la recsList (filtre par fermentation)
+    const membresFiltres = getFamille(parent).filter(x => recsList.includes(x));
+    if (!membresFiltres.length) return; // Cette cuve n'est pas concernée par cette fermentation
+
+    // Tous les membres sélectionnés (toutes fermentations)
+    // → sert à calculer le poids total de la cuve (physiquement indivisible)
+    const tousLesMembres = getFamille(parent).filter(x => selectedRecettes.has(x));
+    const pt = tousLesMembres.reduce((s, x) => s + getPoidsRec(x), 0);
+    const mult = getMult(tousLesMembres);
     const bi = RECETTES[parent].ingredients;
-    const refRec = membres.includes(parent) ? parent : membres[0];
+    const refRec = tousLesMembres.includes(parent) ? parent : tousLesMembres[0];
     const dn = bi.reduce((s, i) => s + getRatio(refRec, i), 0);
     bi.forEach(i => add(i.ing, (getRatio(refRec, i) / dn) * pt * mult));
-    membres.forEach(rec => { (RECETTES[rec].inclusions || []).forEach(inc => {
+
+    // Les inclusions sont propres à chaque déclinaison → on prend TOUS les membres
+    tousLesMembres.forEach(rec => {
       const p = getPoidsRec(rec);
-      add(inc.ing, (p / (1 + inc.ratio)) * inc.ratio * mult);
-    }); });
+      (RECETTES[rec].inclusions || []).forEach(inc => {
+        add(inc.ing, (p / (1 + inc.ratio)) * inc.ratio * mult);
+      });
+    });
   });
 
-  // Recettes indépendantes
-  recsList.filter(rec => {
-    const p = getParent(rec);
-    return !p || !recsList.includes(p);
-  }).forEach(rec => {
+  // ── Boucle 2 : recettes simples sans famille ──
+  // Ex : Méteil, Classique, Intégral...
+  getAutresSimples().filter(x => recsList.includes(x)).forEach(rec => {
     const p = getPoidsRec(rec); if (!p) return;
-    const ings = RECETTES[rec].ingredients || [];
-    const mult = getMult(rec);
+    const mult = getMult([rec]);
+    const ings = RECETTES[rec].ingredients;
     const dn = ings.reduce((s, i) => s + getRatio(rec, i), 0);
     ings.forEach(i => add(i.ing, (getRatio(rec, i) / dn) * p * mult));
+  });
+
+  // ── Boucle 3 : recette parente sélectionnée SEULE sans ses déclinaisons ──
+  // Ex : Campagne sélectionnée sans Graines/Noix/Figues.
+  // Ces recettes ne sont pas couvertes par la boucle 1 (membres vide)
+  // ni par la boucle 2 (getAutresSimples exclut les parents avec décli).
+  getParentesAvecDecli().forEach(parent => {
+    if (!recsList.includes(parent)) return;
+    if (getDeclinaisons(parent).some(r => recsList.includes(r))) return;
+    const p = getPoidsRec(parent); if (!p) return;
+    const mult = getMult([parent]);
+    const ings = RECETTES[parent].ingredients;
+    const dn = ings.reduce((s, i) => s + getRatio(parent, i), 0);
+    ings.forEach(i => add(i.ing, (getRatio(parent, i) / dn) * p * mult));
   });
 
   return r;
@@ -1403,7 +1441,13 @@ function renderResume() {
       let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}" data-goto-bac="${membres[0]}" style="cursor:pointer" title="Voir les bacs →"><div class="ferm-bloc-title">Cuve ${parent}${adjLabel} <span style="font-size:11px;opacity:0.75">↗ bacs</span></div><div class="ferm-bloc-sub">${isAdj ? `<span style="text-decoration:line-through;opacity:0.6">${pt.toFixed(3)}</span> ` : ''}${ptAdj.toFixed(3)} kg pâte totale</div></div><div class="ferm-bloc-steps">`;
       h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${membres.map(r => `<span class="ferm-tag">${r}</span>`).join('')} · ${pt.toFixed(3)} kg</div></div></div>`;
       bi.forEach(i => {
-        const qOrig = (i.ratio / dn) * pt;
+        // Appliquer levainRatioOverride si défini pour la recette de référence
+        let ratioI = i.ratio;
+        if (LEVAINS[i.ing] && levainRatioOverride[refRec] &&
+            levainRatioOverride[refRec][i.ing] !== undefined) {
+          ratioI = levainRatioOverride[refRec][i.ing] / 1000;
+        }
+        const qOrig = (ratioI / dn) * pt;
         const qAdj = qOrig * multCuve;
         const ingDisp = isAdj
           ? `<span class="pesee-orig">${qOrig.toFixed(3)}</span><span class="pesee-new">${qAdj.toFixed(3)}</span>`
@@ -1443,7 +1487,12 @@ function renderResume() {
       let h = `<div class="ferm-bloc"><div class="ferm-bloc-header ${ftype}" data-goto-bac="${rec}" style="cursor:pointer" title="Voir les bacs →"><div class="ferm-bloc-title">${rec}${adjLabelRec} <span style="font-size:11px;opacity:0.75">↗ bacs</span></div><div class="ferm-bloc-sub">${isAdjRec ? '<span style="text-decoration:line-through;opacity:0.6">' + p.toFixed(3) + '</span> ' : ''}${pAdj.toFixed(3)} kg pâte</div></div><div class="ferm-bloc-steps">`;
       h += `<div class="ferm-step"><div class="ferm-step-num ${ftype}">1</div><div><div class="ferm-step-main">Peser & pétrir</div><div class="ferm-step-detail">${pAdj.toFixed(3)} kg</div></div></div>`;
       ings.forEach(i => {
-        const qO = (i.ratio / dn) * p;
+        let ratioI = i.ratio;
+        if (LEVAINS[i.ing] && levainRatioOverride[rec] &&
+            levainRatioOverride[rec][i.ing] !== undefined) {
+          ratioI = levainRatioOverride[rec][i.ing] / 1000;
+        }
+        const qO = (ratioI / dn) * p;
         const qA = qO * multRec;
         const d = isAdjRec ? '<span class="pesee-orig">' + qO.toFixed(3) + '</span><span class="pesee-new">' + qA.toFixed(3) + '</span>' : qA.toFixed(3);
         h += `<div class="ing-row" style="padding-left:44px"><div class="ing-name">${i.ing}</div><div class="ing-qty">${d} <span class="ing-unit">kg</span></div></div>`;
@@ -2197,11 +2246,13 @@ function exportXLSX() {
     const mult = aj && aj.enabled ? 1 + aj.pct / 100 : 1;
     const ajStr = aj && aj.enabled ? (aj.pct >= 0 ? '+' : '') + aj.pct + '%' : '—';
     const fv = (fermentation[rec] || 'j1') === 'j1' ? 'J+1' : 'Direct';
+    const inclRatioXlsx = ((RECETTES[rec] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
     (FORMATS[rec] || []).forEach(fmt => {
       const cols = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0);
       const tot = cols.reduce((a, b) => a + b, 0);
       if (tot === 0) return;
-      const pc = poidsCru(rec, fmt) * mult;
+      // Poids unitaire = pâte + inclusions, ajusté
+      const pc = poidsCru(rec, fmt) * (1 + inclRatioXlsx) * mult;
       const pTot = tot * pc;
       resume.push([rec, fmt.nom, fv, ...cols, tot, pc.toFixed(3), pTot.toFixed(3), ajStr]);
       totPains += tot;
@@ -2611,14 +2662,16 @@ function getBacMax(recNom) {
 
 /** Calcule le poids cru total d'un bac (kg) pour une recette donnée. */
 function getBacPoids(bac, recNom) {
+  // Utilise poidsCru() pour respecter la perte spécifique de chaque recette
+  // (cohérent avec getPoidsRec et tous les autres calculs de poids)
   let total = 0;
   const fmts = FORMATS[recNom] || [];
   const inclRatio = ((RECETTES[recNom] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
   Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
     const fmt = fmts.find(f => f.nom === fmtNom);
     if (fmt) {
-      const poidsPate = qte * fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
-      total += poidsPate * (1 + inclRatio); // pâte + inclusions mélangées
+      const poidsPate = qte * poidsCru(recNom, fmt); // poidsCru gère la perte spécifique
+      total += poidsPate * (1 + inclRatio);
     }
   });
   return total;
@@ -2652,7 +2705,8 @@ function initBacsAuto(recNom) {
   // Collecter tous les pâtons à placer
   const patons = [];
   fmts.forEach(fmt => {
-    const poidsPateUnit = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    // Utilise poidsCru() pour cohérence avec getBacPoids (perte spécifique par recette)
+    const poidsPateUnit = poidsCru(recNom, fmt);
     const inclRatioAuto = ((RECETTES[recNom] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
     const poidsUnit = poidsPateUnit * (1 + inclRatioAuto); // pâte + inclusions
     const total = (qty[recNom] && qty[recNom][fmt.nom])
@@ -2840,7 +2894,7 @@ function buildBacCard(bac, idx, recNom, max) {
   });
 
   fmtsDispo.forEach(fmt => {
-    const poidsPateUnitDisplay = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    const poidsPateUnitDisplay = poidsCru(recNom, fmt); // perte spécifique à la recette
     const inclRatioDisplay = ((RECETTES[recNom] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
     const poidsUnit = Math.round(poidsPateUnitDisplay * (1 + inclRatioDisplay) * 1000); // avec inclusions
     const qte = bac.formats[fmt.nom] || 0;
@@ -2921,7 +2975,10 @@ function printFicheBac(recNom, idx) {
   Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
     if (!qte) return;
     const fmt = (FORMATS[recNom] || []).find(f => f.nom === fmtNom);
-    const pu = fmt ? fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12)) : 0;
+    if (!fmt) return;
+    const pPateUnit = fmt.poidsCuit / (1 - ((RECETTES[recNom] || {}).perte || 0.12));
+    const inclR = ((RECETTES[recNom] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
+    const pu = pPateUnit * (1 + inclR);
     rows += `<tr><td>${fmtNom}</td><td style="text-align:center;font-size:20px;font-weight:700">${qte}</td><td style="text-align:right">${(qte * pu).toFixed(3)} kg</td></tr>`;
     totalPains += qte;
   });
@@ -3322,7 +3379,10 @@ function printFicheJournee() {
       Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
         if (!qte) return;
         const fmt = (FORMATS[rec] || []).find(f => f.nom === fmtNom);
-        const pu = fmt ? fmt.poidsCuit / (1 - ((RECETTES[rec] || {}).perte || 0.12)) : 0;
+        if (!fmt) return;
+        const pPateU = fmt.poidsCuit / (1 - ((RECETTES[rec] || {}).perte || 0.12));
+        const inclRJ = ((RECETTES[rec] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
+        const pu = pPateU * (1 + inclRJ);
         h += `<tr><td>${fmtNom}</td><td style="text-align:center">${qte}</td><td class="r">${(qte*pu).toFixed(3)} kg</td></tr>`;
       });
       h += `<tr style="background:#EFEDD8;font-weight:700"><td>Total</td><td style="text-align:center">${Object.values(bac.formats||{}).reduce((a,b)=>a+b,0)}</td><td class="r">${poids.toFixed(3)} kg</td></tr></table>`;
