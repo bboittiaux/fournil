@@ -1187,10 +1187,7 @@ function calcAllIng() {
 
   getParentesAvecDecli().forEach(parent => {
     if (!selectedRecettes.has(parent)) return;
-    const declis = getDeclinaisons(parent);
-    const decliInSel = declis.some(r => selectedRecettes.has(r));
-    console.log('[calcAllIngForRecs] boucle3 parent=', parent, 'ftype=', ftype, 'declis=', declis, 'decliInSel=', decliInSel, 'parentInRecsList=', recsList.includes ? recsList.includes(parent) : [...recsList].includes(parent));
-    if (decliInSel) return;
+    if (getDeclinaisons(parent).some(r => selectedRecettes.has(r))) return;
     const p = getPoidsRec(parent); if (!p) return;
     const ings = RECETTES[parent].ingredients;
     const dn = ings.reduce((s, i) => s + getRatioIng(parent, i), 0);
@@ -1229,8 +1226,6 @@ function calcLevains(allIng, ftype) {
  * Utilisé pour séparer les levains J+1 / Direct.
  */
 function calcAllIngForRecs(recsList, ftype) {
-  // Calcule les ingrédients cumulés pour un sous-ensemble de recettes.
-  console.log('[calcAllIngForRecs] recsList=', recsList, 'ftype=', ftype);
   const r = {}; const add = (ing, v) => { r[ing] = (r[ing] || 0) + v; };
 
   // Retourne le ratio d'un ingrédient pour une recette donnée.
@@ -1287,8 +1282,7 @@ function calcAllIngForRecs(recsList, ftype) {
 
     // Traiter uniquement le groupe qui correspond au ftype demandé
     const membresFtype = groupeParFerm[ftype] || [];
-    console.log('[calcAllIngForRecs] boucle1 parent=', parent, 'ftype=', ftype, 'membres=', membresFtype, 'groupes=', Object.keys(groupeParFerm));
-    if (!membresFtype.length) return; // Pas de membres de cette fermentation dans cette famille
+    if (!membresFtype.length) return;
 
     // Calculer le poids total de CE groupe (cuve physique)
     const pt = membresFtype.reduce((s, x) => s + getPoidsRec(x), 0);
@@ -1332,10 +1326,7 @@ function calcAllIngForRecs(recsList, ftype) {
     if (!recsList.includes(parent)) return;
     // Si des déclinaisons sont sélectionnées (même dans un autre ftype),
     // le parent est déjà couvert par la boucle 1 → ne pas doubler
-    const declis = getDeclinaisons(parent);
-    const decliInSel = declis.some(r => selectedRecettes.has(r));
-    console.log('[calcAllIngForRecs] boucle3 parent=', parent, 'ftype=', ftype, 'declis=', declis, 'decliInSel=', decliInSel, 'parentInRecsList=', recsList.includes ? recsList.includes(parent) : [...recsList].includes(parent));
-    if (decliInSel) return;
+    if (getDeclinaisons(parent).some(r => selectedRecettes.has(r))) return;
     const p = getPoidsRec(parent); if (!p) return;
     const mult = getMult([parent]);
     const ings = RECETTES[parent].ingredients;
