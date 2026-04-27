@@ -1187,7 +1187,10 @@ function calcAllIng() {
 
   getParentesAvecDecli().forEach(parent => {
     if (!selectedRecettes.has(parent)) return;
-    if (getDeclinaisons(parent).some(r => selectedRecettes.has(r))) return;
+    const declis = getDeclinaisons(parent);
+    const decliInSel = declis.some(r => selectedRecettes.has(r));
+    console.log('[calcAllIngForRecs] boucle3 parent=', parent, 'ftype=', ftype, 'declis=', declis, 'decliInSel=', decliInSel, 'parentInRecsList=', recsList.includes ? recsList.includes(parent) : [...recsList].includes(parent));
+    if (decliInSel) return;
     const p = getPoidsRec(parent); if (!p) return;
     const ings = RECETTES[parent].ingredients;
     const dn = ings.reduce((s, i) => s + getRatioIng(parent, i), 0);
@@ -1227,9 +1230,7 @@ function calcLevains(allIng, ftype) {
  */
 function calcAllIngForRecs(recsList, ftype) {
   // Calcule les ingrédients cumulés pour un sous-ensemble de recettes.
-  // Aligné exactement sur calcAllIng() avec en plus :
-  // - ftype : 'j1' ou 'direct' pour choisir le bon ratio de levain
-  // - cuveAjust appliqué via getMult()
+  console.log('[calcAllIngForRecs] recsList=', recsList, 'ftype=', ftype);
   const r = {}; const add = (ing, v) => { r[ing] = (r[ing] || 0) + v; };
 
   // Retourne le ratio d'un ingrédient pour une recette donnée.
@@ -1286,6 +1287,7 @@ function calcAllIngForRecs(recsList, ftype) {
 
     // Traiter uniquement le groupe qui correspond au ftype demandé
     const membresFtype = groupeParFerm[ftype] || [];
+    console.log('[calcAllIngForRecs] boucle1 parent=', parent, 'ftype=', ftype, 'membres=', membresFtype, 'groupes=', Object.keys(groupeParFerm));
     if (!membresFtype.length) return; // Pas de membres de cette fermentation dans cette famille
 
     // Calculer le poids total de CE groupe (cuve physique)
@@ -1315,13 +1317,25 @@ function calcAllIngForRecs(recsList, ftype) {
     ings.forEach(i => add(i.ing, (getRatio(rec, i) / dn) * p * mult));
   });
 
-  // ── Boucle 3 : recette parente sélectionnée SEULE sans ses déclinaisons ──
-  // Ex : Campagne sélectionnée sans Graines/Noix/Figues.
-  // Ces recettes ne sont pas couvertes par la boucle 1 (membres vide)
-  // ni par la boucle 2 (getAutresSimples exclut les parents avec décli).
+  // ── Boucle 3 : recette parente sélectionnée SEULE sans aucune déclinaison sélectionnée ──
+  // Ex : Campagne sélectionnée seule (sans Graines/Noix/Figues du tout).
+  //
+  // IMPORTANT : ne pas déclencher si le parent a déjà été couvert par la boucle 1.
+  // Cas à éviter : Campagne=Direct + Graines=J+1
+  //   → boucle 1 traite Campagne dans le groupe Direct ✓
+  //   → boucle 3 ne doit PAS retraiter Campagne car ses déclinaisons
+  //     sont sélectionnées (même si elles sont dans un autre ftype)
+  //
+  // Règle corrigée : ignorer si AU MOINS UNE déclinaison est dans selectedRecettes
+  // (quelle que soit sa fermentation), pas seulement dans recsList.
   getParentesAvecDecli().forEach(parent => {
     if (!recsList.includes(parent)) return;
-    if (getDeclinaisons(parent).some(r => recsList.includes(r))) return;
+    // Si des déclinaisons sont sélectionnées (même dans un autre ftype),
+    // le parent est déjà couvert par la boucle 1 → ne pas doubler
+    const declis = getDeclinaisons(parent);
+    const decliInSel = declis.some(r => selectedRecettes.has(r));
+    console.log('[calcAllIngForRecs] boucle3 parent=', parent, 'ftype=', ftype, 'declis=', declis, 'decliInSel=', decliInSel, 'parentInRecsList=', recsList.includes ? recsList.includes(parent) : [...recsList].includes(parent));
+    if (decliInSel) return;
     const p = getPoidsRec(parent); if (!p) return;
     const mult = getMult([parent]);
     const ings = RECETTES[parent].ingredients;
@@ -1504,7 +1518,14 @@ function renderResume() {
       h += `</div></div>`; pd.innerHTML += h;
     });
 
-    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+    recsList.filter(rec => {
+    if (cuvesFaites.has(rec)) return false;
+    if (cuvesFaites.has(getParent(rec))) return false;
+    // Parent avec déclinaisons : exclure si au moins une déclinaison est sélectionnée
+    // (même dans un autre ftype) pour éviter le double comptage avec la boucle 1
+    if (getDeclinaisons(rec).some(d => selectedRecettes.has(d))) return false;
+    return true;
+  }).forEach(rec => {
       const p = getPoidsRec(rec); if (!p) return;
       const ings = RECETTES[rec].ingredients || (RECETTES[getParent(rec)] || {}).ingredients || [];
       const dn = ings.reduce((s, i) => s + i.ratio, 0);
@@ -2051,7 +2072,14 @@ function exportPDF() {
     });
 
     // Recettes indépendantes (pas dans une famille avec déclinaisons)
-    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+    recsList.filter(rec => {
+    if (cuvesFaites.has(rec)) return false;
+    if (cuvesFaites.has(getParent(rec))) return false;
+    // Parent avec déclinaisons : exclure si au moins une déclinaison est sélectionnée
+    // (même dans un autre ftype) pour éviter le double comptage avec la boucle 1
+    if (getDeclinaisons(rec).some(d => selectedRecettes.has(d))) return false;
+    return true;
+  }).forEach(rec => {
       const p = getPoidsRec(rec);
       if (!p) return;
       const mult = (() => { const aj = cuveAjust[rec]; return aj && aj.enabled ? 1 + aj.pct/100 : 1; })();
@@ -2376,7 +2404,14 @@ function exportXLSX() {
       cuvesFaites.add(parent);
       addCuvePeseeRows(null, parent, membres, ftype);
     });
-    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+    recsList.filter(rec => {
+    if (cuvesFaites.has(rec)) return false;
+    if (cuvesFaites.has(getParent(rec))) return false;
+    // Parent avec déclinaisons : exclure si au moins une déclinaison est sélectionnée
+    // (même dans un autre ftype) pour éviter le double comptage avec la boucle 1
+    if (getDeclinaisons(rec).some(d => selectedRecettes.has(d))) return false;
+    return true;
+  }).forEach(rec => {
       addRecettePeseeRows(rec, ftype);
     });
   });
@@ -3342,7 +3377,14 @@ function printFicheJournee() {
       });
       out += '</table>';
     });
-    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+    recsList.filter(rec => {
+    if (cuvesFaites.has(rec)) return false;
+    if (cuvesFaites.has(getParent(rec))) return false;
+    // Parent avec déclinaisons : exclure si au moins une déclinaison est sélectionnée
+    // (même dans un autre ftype) pour éviter le double comptage avec la boucle 1
+    if (getDeclinaisons(rec).some(d => selectedRecettes.has(d))) return false;
+    return true;
+  }).forEach(rec => {
       const p = getPoidsRec(rec); if (!p) return;
       const mult = (() => { const aj = cuveAjust[rec]; return aj && aj.enabled ? 1 + aj.pct/100 : 1; })();
       const pAdj = p * mult;
