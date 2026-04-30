@@ -271,18 +271,19 @@ html, body {
 .sync-dot.ok { background: #5cb85c; }
 .sync-dot.err { background: var(--red); }
 
-/* ── IMPRESSION UNIVERSELLE (fiche journée, bacs, PDF) ── */
-#print-frame { display: none; }
+/* ── IMPRESSION VIA IFRAME ── */
+/* L'iframe est caché par défaut et rendu visible uniquement pendant l'impression */
+#print-frame {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  border: none;
+  z-index: 9999;
+}
 @media print {
-  body > *:not(#print-frame) { display: none !important; }
-  #print-frame {
-    display: block !important;
-    font-family: Georgia, serif;
-    font-size: 11px;
-    color: #36281A;
-    padding: 0;
-    margin: 0;
-  }
+  body > *:not(#print-frame) { display: none !important; visibility: hidden; }
+  #print-frame { display: block !important; visibility: visible; }
 }
 
 /* ════════════════════════════════════════════
@@ -582,7 +583,7 @@ html, body {
   </div>
 </div>
 <div class="toast" id="toast"></div>
-<div id="print-frame"></div>
+<iframe id="print-frame" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;" title="Impression"></iframe>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
@@ -2092,11 +2093,6 @@ function exportPDF() {
 
   h+=`</body></html>`;
 
-  const pf=document.getElementById('print-frame');
-  if (!pf){alert('Erreur: zone impression introuvable.');return;}
-  pf.innerHTML=h;
-  window.print();
-  setTimeout(()=>{pf.innerHTML='';},1500);
   // ─── ASSEMBLAGE HTML ───
 
   // ── Page 1 : pesées + levains + pains ──
@@ -2227,20 +2223,33 @@ function exportPDF() {
   }
 
   // Impression page 1 via print-frame
+  // Impression via iframe — supporte les vrais documents HTML (CSS inclus)
   const pfMain = document.getElementById('print-frame');
   if (!pfMain) { alert('Erreur: zone impression introuvable.'); return; }
-  pfMain.innerHTML = h1;
-  window.print();
 
-  // Impression page 2 (bacs) après un délai pour laisser le temps à page 1 de s'imprimer
+  function printInFrame(htmlContent, callback) {
+    pfMain.style.display = 'block';
+    pfMain.srcdoc = htmlContent;
+    pfMain.onload = () => {
+      try {
+        pfMain.contentWindow.focus();
+        pfMain.contentWindow.print();
+      } catch(e) { window.print(); }
+      if (callback) setTimeout(callback, 800);
+      else setTimeout(() => { pfMain.style.display = 'none'; pfMain.srcdoc = ''; }, 1500);
+    };
+  }
+
+  // Page 1 : pesées + levains + pains
+  // Page 2 : bacs (après délai pour laisser page 1 terminer)
   if (h2) {
-    setTimeout(() => {
-      pfMain.innerHTML = h2;
-      window.print();
-      setTimeout(() => { pfMain.innerHTML = ''; }, 1500);
-    }, 800);
+    printInFrame(h1, () => {
+      printInFrame(h2, () => {
+        pfMain.style.display = 'none'; pfMain.srcdoc = '';
+      });
+    });
   } else {
-    setTimeout(() => { pfMain.innerHTML = ''; }, 1500);
+    printInFrame(h1, null);
   }
 }
 
@@ -2483,9 +2492,13 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
   document.querySelectorAll('.calc-card').forEach(card => { const name = card.querySelector('.calc-name').textContent; const total = card.querySelector('.calc-total-input').value; h += `<h2>${name} — ${total} kg</h2><table>`; card.querySelectorAll('.calc-ing-row').forEach(row => { h += `<tr><td>${row.querySelector('.calc-ing-name').textContent}</td><td>${row.querySelector('.calc-ing-qty').textContent}</td></tr>`; }); h += `</table>`; });
   h += `</body></html>`;
   const pfPDF = document.getElementById('print-frame');
-  pfPDF.innerHTML = h;
-  window.print();
-  setTimeout(() => { pfPDF.innerHTML = ''; }, 1000);
+  pfPDF.style.display = 'block';
+  pfPDF.srcdoc = h;
+  pfPDF.onload = () => {
+    try { pfPDF.contentWindow.focus(); pfPDF.contentWindow.print(); }
+    catch(e) { window.print(); }
+    setTimeout(() => { pfPDF.style.display = 'none'; pfPDF.srcdoc = ''; }, 1500);
+  };
 });
 
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
@@ -3229,12 +3242,16 @@ function printAllFiches() {
 
   h += `</body></html>`;
 
-  // Impression via print-frame
-  const pf = document.getElementById('print-frame');
-  if (!pf) { alert('Erreur: zone impression introuvable.'); return; }
-  pf.innerHTML = h;
-  window.print();
-  setTimeout(() => { pf.innerHTML = ''; }, 1500);
+  // Impression via iframe
+  const pfAll = document.getElementById('print-frame');
+  if (!pfAll) { alert('Erreur: zone impression introuvable.'); return; }
+  pfAll.style.display = 'block';
+  pfAll.srcdoc = h;
+  pfAll.onload = () => {
+    try { pfAll.contentWindow.focus(); pfAll.contentWindow.print(); }
+    catch(e) { window.print(); }
+    setTimeout(() => { pfAll.style.display = 'none'; pfAll.srcdoc = ''; }, 1500);
+  };
 }
 
 // Persister bacs + cuveAjust dans les fournées sauvegardées
@@ -3402,12 +3419,16 @@ function printFicheJournee() {
 
   h += `</body></html>`;
 
-  // Impression via print-frame — fonctionne sur Safari iOS, Chrome Android
+  // Impression via iframe
   const pf = document.getElementById('print-frame');
   if (!pf) { alert('Erreur: zone impression introuvable.'); return; }
-  pf.innerHTML = h;
-  window.print();
-  setTimeout(() => { pf.innerHTML = ''; }, 1500);
+  pf.style.display = 'block';
+  pf.srcdoc = h;
+  pf.onload = () => {
+    try { pf.contentWindow.focus(); pf.contentWindow.print(); }
+    catch(e) { window.print(); }
+    setTimeout(() => { pf.style.display = 'none'; pf.srcdoc = ''; }, 1500);
+  };
 }
 
 
