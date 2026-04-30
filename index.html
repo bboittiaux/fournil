@@ -1965,6 +1965,7 @@ function exportPDF() {
     .notes-box{margin-top:10px;padding:6px 8px;background:#f9f6f0;border-radius:3px;font-size:9px;color:#AE7D66;line-height:1.4}
     .notes-box strong{color:#36281A}
     @page{size:A4 landscape;margin:0}
+    .page-break-before{page-break-before:always}
   </style></head><body>`;
 
   // ─── EN-TÊTE ───
@@ -2143,21 +2144,23 @@ function exportPDF() {
 
   // ─── FONCTION : HTML du tableau pains ───
   function painsTableHTML() {
-    let out = `<table class="pains-table"><thead><tr><th>Recette</th><th>Format</th>${CANAUX.map(c => `<th class="num">${c.substring(0,4)}</th>`).join('')}<th class="num">Tot</th></tr></thead><tbody>`;
-    let totalsCanaux = CANAUX.map(() => 0);
-    let tot = 0;
+    // Tableau compact : Recette | Format | Pains | kg
+    // Les canaux détaillés sont dans le XLSX (pas besoin dans le PDF mural)
+    let out = `<table class="pains-table"><thead><tr><th>Recette</th><th>Format</th><th class="num">Pains</th><th class="num">kg</th></tr></thead><tbody>`;
+    let totPains = 0, totKg = 0;
     orderedRecettes.forEach(rec => {
+      const inclRatio = ((RECETTES[rec] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
       (FORMATS[rec] || []).forEach(fmt => {
-        const cols = CANAUX.map(c => qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0);
-        const t = cols.reduce((a, b) => a + b, 0);
+        const t = CANAUX.reduce((s, c) => s + (qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0), 0);
         if (t > 0) {
-          out += `<tr><td>${rec}</td><td>${fmt.nom}</td>${cols.map(v => `<td class="num">${v||''}</td>`).join('')}<td class="num">${t}</td></tr>`;
-          cols.forEach((v, i) => totalsCanaux[i] += v);
-          tot += t;
+          const pc = poidsCru(rec, fmt) * (1 + inclRatio);
+          const kg = t * pc;
+          out += `<tr><td>${rec}</td><td>${fmt.nom}</td><td class="num">${t}</td><td class="num">${kg.toFixed(1)}</td></tr>`;
+          totPains += t; totKg += kg;
         }
       });
     });
-    out += `<tr class="total"><td colspan="2">Total</td>${totalsCanaux.map(v => `<td class="num">${v}</td>`).join('')}<td class="num">${tot}</td></tr>`;
+    out += `<tr class="total"><td colspan="2">Total</td><td class="num">${totPains}</td><td class="num">${totKg.toFixed(1)}</td></tr>`;
     out += `</tbody></table>`;
     return out;
   }
@@ -2165,32 +2168,34 @@ function exportPDF() {
   // ─── FONCTION : HTML d'un bac en ligne compacte (variante A) ───
   function bacCompactHTML(rec, bac, numGlobal) {
     const poids = getBacPoids(bac, rec);
-    const tag = rec.substring(0, 5);
+    const tag = rec.substring(0, 5).toUpperCase();
     const fmtsStr = Object.entries(bac.formats || {})
       .filter(([_, q]) => q > 0)
       .map(([fmtNom, q]) => `${q}×${fmtNom}`)
-      .join(' + ');
+      .join(' + ') || '—';
+    const poidsStr = poids > 0 ? poids.toFixed(1) : '—';
     return `<div class="bac-compact ${bac.prio?'prio':''}">
       <div class="bac-compact-star">${bac.prio?'★':''}</div>
       <div class="bac-compact-num">${numGlobal}</div>
       <div class="bac-compact-name"><span class="bac-compact-tag">${tag}</span>${bac.label}</div>
       <div class="bac-compact-fmts">${fmtsStr}</div>
-      <div class="bac-compact-kg">${poids.toFixed(1)}</div>
+      <div class="bac-compact-kg">${poidsStr}</div>
     </div>`;
   }
 
-  // ─── FONCTION : HTML d'un bac en mini-carte (variante B) ───
+  // ─── FONCTION : HTML d'un bac en mini-carte (variante B page 2) ───
   function bacMiniHTML(rec, bac, numGlobal) {
     const poids = getBacPoids(bac, rec);
-    const tag = rec.substring(0, 5);
+    const tag = rec.substring(0, 5).toUpperCase();
     const fmtsStr = Object.entries(bac.formats || {})
       .filter(([_, q]) => q > 0)
       .map(([fmtNom, q]) => `${q}× ${fmtNom}`)
-      .join(' · ');
+      .join(' · ') || '—';
+    const poidsStr = poids > 0 ? poids.toFixed(1) + ' kg' : '— kg';
     return `<div class="bac-mini ${bac.prio?'prio':''}">
       <div class="bac-mini-head">
-        <div class="bac-mini-name">${bac.prio?'★ ':''}${numGlobal} · <span class="bac-compact-tag">${tag}</span>${bac.label}</div>
-        <div class="bac-mini-kg">${poids.toFixed(1)} kg</div>
+        <div class="bac-mini-name">${bac.prio?'★ ':''}${numGlobal} · <span class="bac-compact-tag">${tag}</span> ${bac.label}</div>
+        <div class="bac-mini-kg">${poidsStr}</div>
       </div>
       <div class="bac-mini-content">${fmtsStr}</div>
     </div>`;
@@ -2232,8 +2237,11 @@ function exportPDF() {
       </div>
     </div>`;
   } else {
-    // VARIANTE B : haut en 3 colonnes (pesées/levains/pains), bas en grille 2 cols (bacs)
-    h += `<div style="display:grid;grid-template-columns:1.2fr 0.75fr 1.05fr;gap:7px;margin-bottom:8px">
+    // VARIANTE B : 2 pages
+    // Page 1 = pesées + levains + pains (même layout que variante A)
+    // Page 2 = bacs pleine largeur en grille 3-4 colonnes
+    // → les bacs ont plus d'espace et sont lisibles de loin
+    h += `<div style="display:grid;grid-template-columns:1.1fr 0.75fr 1.15fr;gap:7px">
       <div>
         <div class="section-banner">Pesées des cuves</div>
         ${cuveBlockHTML(orderedRecettes)}
@@ -2241,16 +2249,29 @@ function exportPDF() {
       <div>
         <div class="section-banner levain">Levains</div>
         ${levainsHTML()}
+        <div class="notes-box">
+          <strong>📝 Notes</strong><br><br>
+          T° labo : _______ °C<br><br>
+          T° pâte : _______ °C<br><br>
+          Cuit à : _______ °C
+        </div>
       </div>
       <div>
         <div class="section-banner pains">Pains à produire</div>
         ${painsTableHTML()}
+        ${totalBacs <= 10 ? `<div class="section-banner bacs">Bacs (${totalBacs})</div>${bacsFlat.map((b, i) => bacCompactHTML(b.rec, b.bac, i+1)).join('')}` : ''}
       </div>
     </div>
-    <div class="section-banner bacs">Bacs de pointage — ${totalBacs} bacs dans l'ordre de sortie</div>
-    <div class="${totalBacs > 12 ? 'bacs-grid-3' : 'bacs-grid-2'}">
-      ${bacsFlat.map((b, i) => bacMiniHTML(b.rec, b.bac, i+1)).join('')}
-    </div>`;
+    ${totalBacs > 10 ? `
+    <div style="page-break-before:always;padding-top:7mm">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #36281A;padding-bottom:3px;margin-bottom:6px">
+        <div style="font-family:Georgia,serif;font-size:14px;font-weight:700">Bacs de pointage — ${totalBacs} bacs dans l'ordre de sortie</div>
+        <div style="font-size:9px;color:#666">Fournée du ${date}</div>
+      </div>
+      <div class="${totalBacs > 15 ? 'bacs-grid-3' : 'bacs-grid-2'}">
+        ${bacsFlat.map((b, i) => bacMiniHTML(b.rec, b.bac, i+1)).join('')}
+      </div>
+    </div>` : ''}`;
   }
 
   h += `</body></html>`;
