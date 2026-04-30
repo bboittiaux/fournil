@@ -1876,49 +1876,46 @@ function exportPDF() {
   const recsJ1 = orderedRecettes.filter(r => (fermentation[r] || 'j1') === 'j1');
   const recsDirect = orderedRecettes.filter(r => fermentation[r] === 'direct');
 
-  // IMPORTANT : initialiser les bacs pour toutes les recettes avec des quantités
-  // Sinon bacs[rec] peut être undefined si l'utilisateur n'a pas visité l'écran bacs
+  // Initialiser les bacs manquants
   orderedRecettes.forEach(rec => {
-    if (!bacs[rec] && getTotalPains(rec) > 0) {
-      initBacsAuto(rec);
-    }
+    if (!bacs[rec] && getTotalPains(rec) > 0) initBacsAuto(rec);
   });
 
-  // Compter les bacs pour décider du layout (A ou B)
   let totalBacs = 0;
   orderedRecettes.forEach(r => { totalBacs += (bacs[r] || []).length; });
-  const layoutB = totalBacs > 10; // Bascule auto en grille 2 cols si beaucoup de bacs
 
-  // Stats globales
   let totalPains = 0, totalKg = 0;
   orderedRecettes.forEach(r => { totalPains += getTotalPains(r); totalKg += getPoidsRecTotal(r); });
 
-  // Liste des recettes par fermentation pour le bandeau d'en-tête
-  const j1Names = recsJ1.join(', ');
-  const directNames = recsDirect.join(', ');
   const metaFerm = [
-    j1Names ? `🌙 ${j1Names}` : '',
-    directNames ? `☀️ ${directNames}` : ''
+    recsJ1.length ? `🌙 ${recsJ1.join(', ')}` : '',
+    recsDirect.length ? `☀️ ${recsDirect.join(', ')}` : ''
   ].filter(Boolean).join(' · ');
 
-  // ─── CSS commun pour l'impression ───
-  let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournée ${date}</title>
-  <style>
+  // ─── CSS ───
+  const css = `
     *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     html,body{margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#36281A;padding:7mm 9mm;font-size:9.5px;line-height:1.25}
-    .header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #36281A;padding-bottom:3px;margin-bottom:5px}
-    .header-title{font-family:Georgia,serif;font-size:15px;font-weight:700}
-    .header-meta{font-size:10px;color:#666}
-    .header-meta strong{color:#36281A}
-    .big-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px}
-    .big-stat{background:#36281A;color:#EFEDD8;padding:5px 9px;border-radius:3px;display:flex;align-items:baseline;gap:6px}
-    .big-stat-val{font-size:18px;font-weight:800;font-family:Georgia,serif;line-height:1}
-    .big-stat-lbl{font-size:7.5px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8}
+    /* ── Page 1 ── */
+    .p1-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:8px}
+    .p1-right{display:grid;grid-template-rows:auto auto;gap:6px}
+    /* ── Bandeaux section ── */
     .section-banner{background:#36281A;color:white;padding:2px 7px;font-size:8.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px}
     .section-banner.levain{background:#2D6A47}
     .section-banner.pains{background:#AE7D66}
     .section-banner.bacs{background:#8B6F47}
+    /* ── En-tête ── */
+    .header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #36281A;padding-bottom:3px;margin-bottom:5px}
+    .header-title{font-family:Georgia,serif;font-size:15px;font-weight:700}
+    .header-meta{font-size:10px;color:#666}
+    .header-meta strong{color:#36281A}
+    /* ── Stats ── */
+    .big-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px}
+    .big-stat{background:#36281A;color:#EFEDD8;padding:5px 9px;border-radius:3px;display:flex;align-items:baseline;gap:6px}
+    .big-stat-val{font-size:18px;font-weight:800;font-family:Georgia,serif;line-height:1}
+    .big-stat-lbl{font-size:7.5px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8}
+    /* ── Pesées ── */
     .cuve-bloc{margin-bottom:5px;break-inside:avoid}
     .cuve-head{display:flex;justify-content:space-between;align-items:baseline;padding:2px 4px;border-bottom:1px solid #D1B7A7;margin-bottom:2px}
     .cuve-head.j1{background:#f4eee5;border-bottom-color:#36281A}
@@ -1933,350 +1930,269 @@ function exportPDF() {
     .cuve-decli{margin-left:8px;padding-left:5px;border-left:2px solid #D1B7A7;font-size:9px;color:#AE7D66}
     .cuve-decli div{padding:0.5px 0}
     .cuve-decli strong{color:#36281A}
+    /* ── Levains ── */
     .lev-group-label{font-size:8px;font-weight:700;color:#AE7D66;text-transform:uppercase;letter-spacing:0.5px;margin:3px 0 2px}
     .lev-bloc{background:#f6f9f3;border:1px solid #c8dcc0;border-radius:3px;padding:3px 5px;margin-bottom:3px;break-inside:avoid}
     .lev-head{display:flex;justify-content:space-between;border-bottom:1px solid #c8dcc0;padding-bottom:1px;margin-bottom:1px}
     .lev-name{font-weight:700;font-size:10px;color:#2D6A47}
     .lev-total{font-size:11px;font-weight:800;font-family:Georgia,serif;color:#2D6A47}
     .lev-ing{display:flex;justify-content:space-between;padding:0.5px 3px;font-size:9px}
+    /* ── Pains ── */
     .pains-table{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:5px}
-    .pains-table th{background:#EFEDD8;padding:2px 3px;text-align:left;font-size:7.5px;text-transform:uppercase;letter-spacing:0.3px;color:#AE7D66;font-weight:700}
+    .pains-table th{background:#EFEDD8;padding:2px 4px;text-align:left;font-size:7.5px;text-transform:uppercase;letter-spacing:0.3px;color:#AE7D66;font-weight:700}
     .pains-table th.num{text-align:right}
-    .pains-table td{padding:1.5px 3px;border-bottom:1px solid #f3eee4}
+    .pains-table td{padding:1.5px 4px;border-bottom:1px solid #f3eee4}
     .pains-table td.num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     .pains-table tr.total td{background:#EFEDD8;font-weight:800;border-top:1.5px solid #36281A}
-    .bac-compact{display:grid;grid-template-columns:16px 22px 1fr auto 38px;gap:4px;align-items:center;padding:2px 4px;border-bottom:1px solid #f3eee4;font-size:9.5px;break-inside:avoid;page-break-inside:avoid}
-    .bac-compact.prio{background:#FEF5F0;border-left:2px solid #C73600}
-    .bac-compact-star{color:#C73600;font-size:10px;text-align:center;font-weight:700}
-    .bac-compact-num{font-family:Georgia,serif;font-weight:800;font-size:14px;color:#36281A;text-align:center;line-height:1}
-    .bac-compact.prio .bac-compact-num{color:#C73600}
-    .bac-compact-name{font-weight:600}
-    .bac-compact-tag{display:inline-block;background:#36281A;color:white;font-size:7px;padding:1px 4px;border-radius:2px;margin-right:3px;font-weight:700;text-transform:uppercase}
-    .bac-compact-fmts{font-size:9px;color:#555;text-align:right;font-variant-numeric:tabular-nums}
-    .bac-compact-kg{text-align:right;font-weight:800;font-family:Georgia,serif;font-size:11px}
-    .bacs-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:3px}
-    .bacs-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px}
-    .bac-mini{border:1px solid #E0D8C0;border-radius:3px;padding:3px 5px;font-size:9px;background:white;break-inside:avoid;page-break-inside:avoid}
+    /* ── Notes ── */
+    .notes-box{margin-top:8px;padding:6px 8px;background:#f9f6f0;border-radius:3px;font-size:9px;color:#AE7D66;line-height:1.6}
+    .notes-box strong{color:#36281A}
+    /* ── Page 2 bacs ── */
+    .bacs-page{padding-top:5mm}
+    .bacs-page-header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #36281A;padding-bottom:3px;margin-bottom:6px}
+    .bacs-page-title{font-family:Georgia,serif;font-size:14px;font-weight:700}
+    .bacs-page-date{font-size:9px;color:#666}
+    .bacs-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+    .bacs-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}
+    .bac-mini{border:1px solid #E0D8C0;border-radius:3px;padding:4px 6px;font-size:9px;background:white;break-inside:avoid;page-break-inside:avoid}
     .bac-mini.prio{border:1.5px solid #C73600;background:#FEF5F0}
-    .bac-mini-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1px}
+    .bac-mini-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px}
     .bac-mini-name{font-weight:700;font-size:9.5px}
     .bac-mini-kg{font-family:Georgia,serif;font-weight:800;font-size:10.5px}
     .bac-mini-content{font-size:8.5px;color:#555;font-variant-numeric:tabular-nums}
-    .notes-box{margin-top:10px;padding:6px 8px;background:#f9f6f0;border-radius:3px;font-size:9px;color:#AE7D66;line-height:1.4}
-    .notes-box strong{color:#36281A}
+    .bac-compact-tag{display:inline-block;background:#36281A;color:white;font-size:7px;padding:1px 4px;border-radius:2px;margin-right:3px;font-weight:700;text-transform:uppercase}
+    /* ── Impression ── */
     @page{size:A4 landscape;margin:0}
-    .page-break-before{page-break-before:always}
-  </style></head><body>`;
+    @media print{
+      .page-break{page-break-before:always;-webkit-page-break-before:always}
+    }
+  `;
 
-  // ─── EN-TÊTE ───
-  h += `<div class="header">
-    <div class="header-title">Le Fournil des Enfariné.e.s</div>
-    <div class="header-meta">
-      Fournée du <strong>${date}</strong> ·
-      <strong>${orderedRecettes.length} recette${orderedRecettes.length>1?'s':''} · ${totalBacs} bac${totalBacs>1?'s':''}</strong>
-      ${metaFerm ? ' · ' + metaFerm : ''}
-    </div>
-  </div>`;
-
-  // ─── STATS GLOBALES ───
-  h += `<div class="big-stats">
-    <div class="big-stat"><span class="big-stat-val">${totalPains}</span><span class="big-stat-lbl">Pains à produire</span></div>
-    <div class="big-stat"><span class="big-stat-val">${totalKg.toFixed(1)}</span><span class="big-stat-lbl">kg pâte crue</span></div>
-    <div class="big-stat"><span class="big-stat-val">${orderedRecettes.length}</span><span class="big-stat-lbl">Recettes</span></div>
-    <div class="big-stat"><span class="big-stat-val">${totalBacs}</span><span class="big-stat-lbl">Bacs</span></div>
-  </div>`;
-
-  // ─── FONCTION : HTML des pesées d'une cuve ou recette simple ───
+  // ─── cuveBlockHTML ───
   function cuveBlockHTML(recsList) {
     let out = '';
     const cuvesFaites = new Set();
+    const cuvesFamillesAffichees = new Set();
 
     getParentesAvecDecli().forEach(parent => {
-      const membres = getFamille(parent).filter(r => recsList.includes(r));
-      if (!membres.length) return;
-      cuvesFaites.add(parent);
+      const tousMembresSel = getFamille(parent).filter(r => selectedRecettes.has(r));
+      if (!tousMembresSel.length) return;
 
-      // Poids total de la cuve = somme des parts de base (sans inclusions)
-      const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
-      const mult = (() => {
-        for (const r of membres) {
-          const aj = cuveAjust[r];
-          if (aj && aj.enabled) return 1 + aj.pct / 100;
-        }
-        return 1;
-      })();
-      const ptAdj = pt * mult;
-      const bi = RECETTES[parent].ingredients;
-      const refRec = membres.includes(parent) ? parent : membres[0];
-      const dn = bi.reduce((s, i) => {
-        let r = i.ratio;
-        if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
-        return s + r;
-      }, 0);
-
-      const ftype = (fermentation[membres[0]] || 'j1');
-      const fermClass = ftype === 'direct' ? 'direct' : 'j1';
-      const fermIcon = ftype === 'direct' ? '☀️' : '🌙';
-      const isAdj = Math.abs(mult - 1) > 0.001;
-      const adjBadge = isAdj ? ` <span class="cuve-adj-badge">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
-
-      out += `<div class="cuve-bloc">
-        <div class="cuve-head ${fermClass}">
-          <div class="cuve-name">${fermIcon} Cuve ${parent}${adjBadge}</div>
-          <div class="cuve-kg ${isAdj?'adj':''}">${ptAdj.toFixed(3)} kg</div>
-        </div>`;
-
-      // Ingrédients de base ajustés
-      bi.forEach(i => {
-        let r = i.ratio;
-        if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
-        const q = (r / dn) * ptAdj;
-        out += `<div class="cuve-ing"><span class="cuve-ing-name">${i.ing}</span><span class="cuve-ing-qty">${q.toFixed(3)}</span></div>`;
+      // Un groupe par fermentation → une cuve par groupe
+      const groupes = {};
+      tousMembresSel.forEach(r => {
+        const f = fermentation[r] || 'j1';
+        if (!groupes[f]) groupes[f] = [];
+        groupes[f].push(r);
       });
 
-      // Parts : afficher TOUTES les parts (y compris parent si sélectionné),
-      // d'abord celles sans inclusions (parent en premier), puis celles avec inclusions
-      // Règle métier : quand tu pétris la cuve, tu divises en parts dont chacune peut recevoir ses inclusions
-      const partsSansIncl = membres.filter(r => !(RECETTES[r].inclusions || []).length);
-      const partsAvecIncl = membres.filter(r => (RECETTES[r].inclusions || []).length);
+      Object.entries(groupes).forEach(([ftype, membres]) => {
+        if (!membres.some(r => recsList.includes(r))) return;
+        const cle = parent + '_' + ftype;
+        if (cuvesFamillesAffichees.has(cle)) return;
+        cuvesFamillesAffichees.add(cle);
+        cuvesFaites.add(parent);
 
-      if (partsSansIncl.length || partsAvecIncl.length) {
-        out += `<div class="cuve-decli">`;
-        partsSansIncl.forEach(rec => {
-          const p = getPoidsRec(rec) * mult;
-          out += `<div><strong>↳ Part ${rec} (${p.toFixed(3)} kg)</strong> <span style="color:#999">— sans inclusion</span></div>`;
+        const pt = membres.reduce((s, r) => s + getPoidsRec(r), 0);
+        const mult = (() => { for (const r of membres) { const aj = cuveAjust[r]; if (aj && aj.enabled) return 1 + aj.pct/100; } return 1; })();
+        const ptAdj = pt * mult;
+        const bi = RECETTES[parent].ingredients;
+        const refRec = membres.includes(parent) ? parent : membres[0];
+        const dn = bi.reduce((s, i) => {
+          let r = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
+          return s + r;
+        }, 0);
+        const isAdj = Math.abs(mult-1) > 0.001;
+        const adjBadge = isAdj ? ` <span class="cuve-adj-badge">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
+        const tousMemmesFerm = tousMembresSel.every(r => (fermentation[r]||'j1') === ftype);
+        const suffix = tousMemmesFerm ? '' : ` (${ftype==='j1'?'J+1':'Direct'})`;
+        const fermClass = ftype === 'direct' ? 'direct' : 'j1';
+        const fermIcon = ftype === 'direct' ? '☀️' : '🌙';
+
+        out += `<div class="cuve-bloc">
+          <div class="cuve-head ${fermClass}" data-goto-bac="${membres[0]}" style="cursor:pointer">
+            <div class="cuve-name">${fermIcon} Cuve ${parent}${suffix}${adjBadge}</div>
+            <div class="cuve-kg ${isAdj?'adj':''}">${ptAdj.toFixed(3)} kg</div>
+          </div>`;
+        bi.forEach(i => {
+          let r = i.ratio;
+          if (LEVAINS[i.ing] && levainRatioOverride[refRec] && levainRatioOverride[refRec][i.ing] !== undefined) r = levainRatioOverride[refRec][i.ing] / 1000;
+          const q = (r/dn)*ptAdj;
+          out += `<div class="cuve-ing"><span class="cuve-ing-name">${i.ing}</span><span class="cuve-ing-qty">${q.toFixed(3)}</span></div>`;
         });
-        partsAvecIncl.forEach(rec => {
-          const p = getPoidsRec(rec);       // poids pâte de base
-          const pAdj = p * mult;             // poids ajusté
-          let line = `<div>↳ Part ${rec} (${pAdj.toFixed(3)} kg)`;
-          (RECETTES[rec].inclusions || []).forEach(inc => {
-            const qInc = (p / (1 + inc.ratio)) * inc.ratio * mult;
-            line += ` + ${inc.ing} ${qInc.toFixed(3)} kg`;
+        // Parts
+        const partsSans = membres.filter(r => !(RECETTES[r].inclusions||[]).length);
+        const partsAvec = membres.filter(r => (RECETTES[r].inclusions||[]).length);
+        if (partsSans.length || partsAvec.length) {
+          out += `<div class="cuve-decli">`;
+          partsSans.forEach(r => {
+            out += `<div><strong>↳ Part ${r} (${(getPoidsRec(r)*mult).toFixed(3)} kg)</strong> <span style="opacity:0.6">— sans inclusion</span></div>`;
           });
-          line += `</div>`;
-          out += line;
-        });
+          partsAvec.forEach(r => {
+            const p = getPoidsRec(r); const pAdj = p*mult;
+            let line = `<div>↳ Part ${r} (${pAdj.toFixed(3)} kg)`;
+            (RECETTES[r].inclusions||[]).forEach(inc => {
+              const q = (p/(1+inc.ratio))*inc.ratio*mult;
+              line += ` + ${inc.ing} ${q.toFixed(3)} kg`;
+            });
+            out += line + `</div>`;
+          });
+          out += `</div>`;
+        }
         out += `</div>`;
-      }
-
-      out += `</div>`;
+      });
     });
 
-    // Recettes indépendantes (pas dans une famille avec déclinaisons)
-    recsList.filter(rec => {
-    if (cuvesFaites.has(rec)) return false;
-    if (cuvesFaites.has(getParent(rec))) return false;
-    // Parent avec déclinaisons : exclure si au moins une déclinaison est sélectionnée
-    // (même dans un autre ftype) pour éviter le double comptage avec la boucle 1
-    if (getDeclinaisons(rec).some(d => selectedRecettes.has(d))) return false;
-    return true;
-  }).forEach(rec => {
-      const p = getPoidsRec(rec);
-      if (!p) return;
-      const mult = (() => { const aj = cuveAjust[rec]; return aj && aj.enabled ? 1 + aj.pct/100 : 1; })();
-      const pAdj = p * mult;
-      const ings = RECETTES[rec].ingredients || [];
-      const dn = ings.reduce((s, i) => {
-        let r = i.ratio;
-        if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) r = levainRatioOverride[rec][i.ing] / 1000;
-        return s + r;
-      }, 0);
-
-      const ftype = (fermentation[rec] || 'j1');
-      const fermClass = ftype === 'direct' ? 'direct' : 'j1';
-      const fermIcon = ftype === 'direct' ? '☀️' : '🌙';
-      const isAdj = Math.abs(mult - 1) > 0.001;
-      const adjBadge = isAdj ? ` <span class="cuve-adj-badge">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>` : '';
-
+    // Recettes indépendantes
+    recsList.filter(rec => !cuvesFaites.has(getParent(rec)) && !cuvesFaites.has(rec)).forEach(rec => {
+      const p = getPoidsRec(rec); if (!p) return;
+      const mult = (() => { const aj = cuveAjust[rec]; return aj&&aj.enabled?1+aj.pct/100:1; })();
+      const pAdj = p*mult;
+      const ings = RECETTES[rec].ingredients||[];
+      const dn = ings.reduce((s,i)=>{ let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[rec]&&levainRatioOverride[rec][i.ing]!==undefined) r=levainRatioOverride[rec][i.ing]/1000; return s+r; }, 0);
+      const isAdj = Math.abs(mult-1)>0.001;
+      const adjBadge = isAdj?` <span class="cuve-adj-badge">${mult>1?'+':''}${Math.round((mult-1)*100)}%</span>`:'';
+      const ftype = fermentation[rec]||'j1';
+      const fermClass = ftype==='direct'?'direct':'j1';
+      const fermIcon = ftype==='direct'?'☀️':'🌙';
       out += `<div class="cuve-bloc">
-        <div class="cuve-head ${fermClass}">
+        <div class="cuve-head ${fermClass}" data-goto-bac="${rec}" style="cursor:pointer">
           <div class="cuve-name">${fermIcon} ${rec}${adjBadge}</div>
           <div class="cuve-kg ${isAdj?'adj':''}">${pAdj.toFixed(3)} kg</div>
         </div>`;
-
       ings.forEach(i => {
-        let r = i.ratio;
-        if (LEVAINS[i.ing] && levainRatioOverride[rec] && levainRatioOverride[rec][i.ing] !== undefined) r = levainRatioOverride[rec][i.ing] / 1000;
-        const q = (r / dn) * pAdj;
-        out += `<div class="cuve-ing"><span class="cuve-ing-name">${i.ing}</span><span class="cuve-ing-qty">${q.toFixed(3)}</span></div>`;
+        let r=i.ratio; if(LEVAINS[i.ing]&&levainRatioOverride[rec]&&levainRatioOverride[rec][i.ing]!==undefined) r=levainRatioOverride[rec][i.ing]/1000;
+        out += `<div class="cuve-ing"><span class="cuve-ing-name">${i.ing}</span><span class="cuve-ing-qty">${((r/dn)*pAdj).toFixed(3)}</span></div>`;
       });
       out += `</div>`;
     });
-
     return out;
   }
 
-  // ─── FONCTION : HTML des levains ───
+  // ─── levainsHTML ───
   function levainsHTML() {
     let out = '';
     function renderGroup(recsList, ftype, label) {
       if (!recsList.length) return '';
       const ing = calcAllIngForRecs(recsList, ftype);
-      const levains = calcLevains(ing, ftype);
-      if (!Object.keys(levains).length) return '';
+      const levs = calcLevains(ing, ftype);
+      if (!Object.keys(levs).length) return '';
       let g = `<div class="lev-group-label">${label}</div>`;
-      Object.entries(levains).forEach(([lev, data]) => {
-        g += `<div class="lev-bloc">
-          <div class="lev-head">
-            <div class="lev-name">${lev}</div>
-            <div class="lev-total">${data.total.toFixed(3)} kg</div>
-          </div>`;
-        data.compos.forEach(c => {
-          g += `<div class="lev-ing"><span>${c.ing}</span><strong>${c.qty.toFixed(3)}</strong></div>`;
-        });
+      Object.entries(levs).forEach(([lev, data]) => {
+        g += `<div class="lev-bloc"><div class="lev-head"><div class="lev-name">${lev}</div><div class="lev-total">${data.total.toFixed(3)} kg</div></div>`;
+        data.compos.forEach(c => { g += `<div class="lev-ing"><span>${c.ing}</span><strong>${c.qty.toFixed(3)}</strong></div>`; });
         g += `</div>`;
       });
       return g;
     }
-
     if (recsJ1.length && recsDirect.length) {
       out += renderGroup(recsJ1, 'j1', '🌙 Ce soir (J+1)');
       out += renderGroup(recsDirect, 'direct', '☀️ Demain matin (Direct)');
     } else if (recsJ1.length) {
       out += renderGroup(recsJ1, 'j1', '🌙 Ce soir (J+1)');
-    } else if (recsDirect.length) {
+    } else {
       out += renderGroup(recsDirect, 'direct', '☀️ Demain matin (Direct)');
     }
-
     return out;
   }
 
-  // ─── FONCTION : HTML du tableau pains ───
+  // ─── painsTableHTML ─── (compact : Recette | Format | Pains | kg)
   function painsTableHTML() {
-    // Tableau compact : Recette | Format | Pains | kg
-    // Les canaux détaillés sont dans le XLSX (pas besoin dans le PDF mural)
     let out = `<table class="pains-table"><thead><tr><th>Recette</th><th>Format</th><th class="num">Pains</th><th class="num">kg</th></tr></thead><tbody>`;
     let totPains = 0, totKg = 0;
     orderedRecettes.forEach(rec => {
-      const inclRatio = ((RECETTES[rec] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
-      (FORMATS[rec] || []).forEach(fmt => {
-        const t = CANAUX.reduce((s, c) => s + (qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][c] || 0 : 0), 0);
-        if (t > 0) {
-          const pc = poidsCru(rec, fmt) * (1 + inclRatio);
-          const kg = t * pc;
-          out += `<tr><td>${rec}</td><td>${fmt.nom}</td><td class="num">${t}</td><td class="num">${kg.toFixed(1)}</td></tr>`;
-          totPains += t; totKg += kg;
-        }
+      const inclRatio = ((RECETTES[rec]||{}).inclusions||[]).reduce((s,inc)=>s+inc.ratio,0);
+      (FORMATS[rec]||[]).forEach(fmt => {
+        const t = CANAUX.reduce((s,c)=>s+(qty[rec]&&qty[rec][fmt.nom]?qty[rec][fmt.nom][c]||0:0),0);
+        if (!t) return;
+        const kg = t * poidsCru(rec,fmt) * (1+inclRatio);
+        out += `<tr><td>${rec}</td><td>${fmt.nom}</td><td class="num">${t}</td><td class="num">${kg.toFixed(1)}</td></tr>`;
+        totPains+=t; totKg+=kg;
       });
     });
-    out += `<tr class="total"><td colspan="2">Total</td><td class="num">${totPains}</td><td class="num">${totKg.toFixed(1)}</td></tr>`;
-    out += `</tbody></table>`;
+    out += `<tr class="total"><td colspan="2">Total</td><td class="num">${totPains}</td><td class="num">${totKg.toFixed(1)}</td></tr></tbody></table>`;
     return out;
   }
 
-  // ─── FONCTION : HTML d'un bac en ligne compacte (variante A) ───
-  function bacCompactHTML(rec, bac, numGlobal) {
+  // ─── bacMiniHTML ───
+  function bacMiniHTML(rec, bac, num) {
     const poids = getBacPoids(bac, rec);
-    const tag = rec.substring(0, 5).toUpperCase();
-    const fmtsStr = Object.entries(bac.formats || {})
-      .filter(([_, q]) => q > 0)
-      .map(([fmtNom, q]) => `${q}×${fmtNom}`)
-      .join(' + ') || '—';
-    const poidsStr = poids > 0 ? poids.toFixed(1) : '—';
-    return `<div class="bac-compact ${bac.prio?'prio':''}">
-      <div class="bac-compact-star">${bac.prio?'★':''}</div>
-      <div class="bac-compact-num">${numGlobal}</div>
-      <div class="bac-compact-name"><span class="bac-compact-tag">${tag}</span>${bac.label}</div>
-      <div class="bac-compact-fmts">${fmtsStr}</div>
-      <div class="bac-compact-kg">${poidsStr}</div>
-    </div>`;
-  }
-
-  // ─── FONCTION : HTML d'un bac en mini-carte (variante B page 2) ───
-  function bacMiniHTML(rec, bac, numGlobal) {
-    const poids = getBacPoids(bac, rec);
-    const tag = rec.substring(0, 5).toUpperCase();
-    const fmtsStr = Object.entries(bac.formats || {})
-      .filter(([_, q]) => q > 0)
-      .map(([fmtNom, q]) => `${q}× ${fmtNom}`)
-      .join(' · ') || '—';
-    const poidsStr = poids > 0 ? poids.toFixed(1) + ' kg' : '— kg';
+    const tag = rec.substring(0,5).toUpperCase();
+    const fmts = Object.entries(bac.formats||{}).filter(([_,q])=>q>0).map(([f,q])=>`${q}× ${f}`).join(' · ')||'—';
+    const kg = poids>0?poids.toFixed(1)+' kg':'— kg';
     return `<div class="bac-mini ${bac.prio?'prio':''}">
       <div class="bac-mini-head">
-        <div class="bac-mini-name">${bac.prio?'★ ':''}${numGlobal} · <span class="bac-compact-tag">${tag}</span> ${bac.label}</div>
-        <div class="bac-mini-kg">${poidsStr}</div>
+        <div class="bac-mini-name">${bac.prio?'★ ':''}${num} · <span class="bac-compact-tag">${tag}</span> ${bac.label}</div>
+        <div class="bac-mini-kg">${kg}</div>
       </div>
-      <div class="bac-mini-content">${fmtsStr}</div>
+      <div class="bac-mini-content">${fmts}</div>
     </div>`;
   }
 
-  // ─── Construction liste globale des bacs avec numérotation continue ───
+  // ─── Bacs dans l'ordre ───
   const bacsFlat = [];
-  orderedRecettes.forEach(rec => {
-    (bacs[rec] || []).forEach(bac => {
-      bacsFlat.push({ rec, bac });
-    });
-  });
-  // Trier : prioritaires d'abord, puis ordre normal
-  bacsFlat.sort((a, b) => (b.bac.prio ? 1 : 0) - (a.bac.prio ? 1 : 0));
+  orderedRecettes.forEach(rec => { (bacs[rec]||[]).forEach(bac => bacsFlat.push({rec,bac})); });
+  bacsFlat.sort((a,b)=>(b.bac.prio?1:0)-(a.bac.prio?1:0));
 
-  // ─── ASSEMBLAGE selon variante ───
-  if (!layoutB) {
-    // VARIANTE A : 3 colonnes, bacs en lignes dans col droite
-    h += `<div style="display:grid;grid-template-columns:1.1fr 0.75fr 1.15fr;gap:7px">
-      <div>
-        <div class="section-banner">Pesées des cuves</div>
-        ${cuveBlockHTML(orderedRecettes)}
-      </div>
+  // ─── ASSEMBLAGE HTML ───
+  let h = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournée ${date}</title><style>${css}</style></head><body>`;
+
+  // En-tête
+  h += `<div class="header">
+    <div class="header-title">Le Fournil des Enfariné.e.s</div>
+    <div class="header-meta">Fournée du <strong>${date}</strong> · <strong>${orderedRecettes.length} recettes · ${totalBacs} bacs</strong>${metaFerm?' · '+metaFerm:''}</div>
+  </div>`;
+
+  // Stats
+  h += `<div class="big-stats">
+    <div class="big-stat"><span class="big-stat-val">${totalPains}</span><span class="big-stat-lbl">Pains</span></div>
+    <div class="big-stat"><span class="big-stat-val">${totalKg.toFixed(1)}</span><span class="big-stat-lbl">kg pâte crue</span></div>
+    <div class="big-stat"><span class="big-stat-val">${orderedRecettes.length}</span><span class="big-stat-lbl">Recettes</span></div>
+    <div class="big-stat"><span class="big-stat-val">${totalBacs}</span><span class="big-stat-lbl">Bacs</span></div>
+  </div>`;
+
+  // PAGE 1 : grille 2 colonnes
+  // Colonne gauche = pesées (pleine hauteur)
+  // Colonne droite = levains (haut) + pains (bas) + notes
+  h += `<div class="p1-grid">
+    <div>
+      <div class="section-banner">Pesées des cuves</div>
+      ${cuveBlockHTML(orderedRecettes)}
+    </div>
+    <div class="p1-right">
       <div>
         <div class="section-banner levain">Levains à préparer</div>
         ${levainsHTML()}
-        <div class="notes-box">
-          <strong>📝 Notes libres</strong><br><br>
-          T° labo : _______ °C<br><br>
-          T° pâte : _______ °C<br><br>
-          Cuit à : _______ °C
-        </div>
       </div>
       <div>
         <div class="section-banner pains">Pains à produire</div>
         ${painsTableHTML()}
-        ${totalBacs > 0 ? `<div class="section-banner bacs">Bacs de pointage (${totalBacs})</div>` : ''}
-        ${bacsFlat.map((b, i) => bacCompactHTML(b.rec, b.bac, i+1)).join('')}
-      </div>
-    </div>`;
-  } else {
-    // VARIANTE B : 2 pages
-    // Page 1 = pesées + levains + pains (même layout que variante A)
-    // Page 2 = bacs pleine largeur en grille 3-4 colonnes
-    // → les bacs ont plus d'espace et sont lisibles de loin
-    h += `<div style="display:grid;grid-template-columns:1.1fr 0.75fr 1.15fr;gap:7px">
-      <div>
-        <div class="section-banner">Pesées des cuves</div>
-        ${cuveBlockHTML(orderedRecettes)}
-      </div>
-      <div>
-        <div class="section-banner levain">Levains</div>
-        ${levainsHTML()}
         <div class="notes-box">
-          <strong>📝 Notes</strong><br><br>
-          T° labo : _______ °C<br><br>
-          T° pâte : _______ °C<br><br>
-          Cuit à : _______ °C
+          <strong>📝 Notes</strong><br>
+          T° labo : _______ °C &nbsp;&nbsp; T° pâte : _______ °C &nbsp;&nbsp; Cuit à : _______ °C
         </div>
-      </div>
-      <div>
-        <div class="section-banner pains">Pains à produire</div>
-        ${painsTableHTML()}
-        ${totalBacs <= 10 ? `<div class="section-banner bacs">Bacs (${totalBacs})</div>${bacsFlat.map((b, i) => bacCompactHTML(b.rec, b.bac, i+1)).join('')}` : ''}
       </div>
     </div>
-    ${totalBacs > 10 ? `
-    <div style="page-break-before:always;padding-top:7mm">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #36281A;padding-bottom:3px;margin-bottom:6px">
-        <div style="font-family:Georgia,serif;font-size:14px;font-weight:700">Bacs de pointage — ${totalBacs} bacs dans l'ordre de sortie</div>
-        <div style="font-size:9px;color:#666">Fournée du ${date}</div>
+  </div>`;
+
+  // PAGE 2 : bacs — page-break géré par le navigateur à l'impression
+  if (bacsFlat.length > 0) {
+    const gridClass = bacsFlat.length > 14 ? 'bacs-grid-3' : 'bacs-grid-2';
+    h += `<div class="bacs-page page-break">
+      <div class="bacs-page-header">
+        <div class="bacs-page-title">Bacs de pointage — ${totalBacs} bacs dans l'ordre de sortie</div>
+        <div class="bacs-page-date">Fournée du ${date}</div>
       </div>
-      <div class="${totalBacs > 15 ? 'bacs-grid-3' : 'bacs-grid-2'}">
-        ${bacsFlat.map((b, i) => bacMiniHTML(b.rec, b.bac, i+1)).join('')}
+      <div class="${gridClass}">
+        ${bacsFlat.map((b,i) => bacMiniHTML(b.rec, b.bac, i+1)).join('')}
       </div>
-    </div>` : ''}`;
+    </div>`;
   }
 
   h += `</body></html>`;
 
-  // Impression via print-frame (universelle, marche sur mobile)
+  // Impression via print-frame
   const pf = document.getElementById('print-frame');
   if (!pf) { alert('Erreur: zone impression introuvable.'); return; }
   pf.innerHTML = h;
