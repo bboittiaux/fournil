@@ -499,6 +499,12 @@ html, body {
       <div id="editor-list"></div>
       <button class="btn-new-lev" id="btn-new-lev">+ Nouveau levain</button>
       <button class="btn-new-rec" id="btn-new-rec">+ Nouvelle recette</button>
+      <div style="margin:16px 0 0;padding:12px 14px;background:var(--paper);border-radius:10px;border:1px solid var(--tan)">
+        <div style="font-size:11px;font-weight:700;color:var(--tan-dark);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Export migration Odoo</div>
+        <div style="font-size:12px;color:var(--dark);opacity:0.7;margin-bottom:10px">Génère 2 fichiers CSV à importer dans Odoo : produits finis et matières premières.</div>
+        <button id="btn-export-produits" style="display:block;width:100%;padding:10px;margin-bottom:6px;background:var(--dark);color:var(--paper);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">↓ Produits finis (recettes × formats)</button>
+        <button id="btn-export-matieres" style="display:block;width:100%;padding:10px;background:var(--dark);color:var(--paper);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">↓ Matières premières (ingrédients)</button>
+      </div>
     </div>
     <div class="bottom-bar">
       <button class="btn-secondary" id="btn-rec-back">← Retour</button>
@@ -1178,7 +1184,7 @@ function calcAllIng() {
     const refRec = selectedRecettes.has(parent) ? parent : membres[0];
     const dn = bi.reduce((s, i) => s + getRatioIng(refRec, i), 0);
     bi.forEach(i => add(i.ing, (getRatioIng(refRec, i) / dn) * pt));
-    membres.forEach(rec => { const p = getPoidsRec(rec); (RECETTES[rec].inclusions || []).forEach(inc => add(inc.ing, (p / (1 + inc.ratio)) * inc.ratio)); });
+    membres.forEach(rec => { const p = getPoidsRec(rec); (RECETTES[rec].inclusions || []).forEach(inc => add(inc.ing, p * inc.ratio)); });
   });
 
   getAutresSimples().filter(x => selectedRecettes.has(x)).forEach(rec => {
@@ -1299,7 +1305,7 @@ function calcAllIngForRecs(recsList, ftype) {
     membresFtype.forEach(rec => {
       const p = getPoidsRec(rec);
       (RECETTES[rec].inclusions || []).forEach(inc => {
-        add(inc.ing, (p / (1 + inc.ratio)) * inc.ratio * mult);
+        add(inc.ing, p * inc.ratio * mult);
       });
     });
   });
@@ -1493,13 +1499,13 @@ function renderResume() {
       membres.forEach(rec => {
         const p = getPoidsRec(rec); const incl = RECETTES[rec].inclusions || [];
         // Chaque membre a son propre bandeau cliquable vers sa tab bacs
-        const pTot = getPoidsRecTotal(rec);
+        const pBase = getPoidsRec(rec);
         h += `<div class="ferm-step" data-goto-bac="${rec}" style="cursor:pointer" title="Voir les bacs ${rec} →">
           <div class="ferm-step-num ${ftype}">↳</div>
           <div>
-            <div class="ferm-step-main">${rec} — ${pTot.toFixed(3)} kg <span style="font-size:10px;opacity:0.65">↗ bacs</span></div>`;
+            <div class="ferm-step-main">${rec} — ${pBase.toFixed(3)} kg <span style="font-size:10px;opacity:0.65">↗ bacs</span></div>`;
         if (incl.length) {
-          incl.forEach(inc => { const q = (p / (1 + inc.ratio)) * inc.ratio; h += `<div class="ferm-step-detail">+ ${inc.ing} : ${q.toFixed(3)} kg</div>`; });
+          incl.forEach(inc => { const q = p * inc.ratio; h += `<div class="ferm-step-detail">+ ${inc.ing} : ${q.toFixed(3)} kg</div>`; });
         }
         h += `</div></div>`;
       });
@@ -1876,7 +1882,7 @@ function today() { return new Date().toISOString().slice(0, 10); }
 
 function exportPDF() {
   const { jsPDF } = window.jspdf;
-  if (!jsPDF) { showToast('jsPDF non chargé — vérifier la connexion'); return; }
+  if (!jsPDF) { showToast('jsPDF non chargé - vérifier la connexion'); return; }
   const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
 
   // Init bacs
@@ -1945,7 +1951,7 @@ function exportPDF() {
     doc.setDrawColor(...(isJ1?C.dark:C.red)); doc.line(ML,yL+5,ML+colLW,yL+5);
     doc.setTextColor(...(isJ1?C.dark:C.red));
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
-    doc.text(`${isJ1?'☾':'☀'}  ${parent === membres[0] || membres.includes(parent) ? 'Cuve '+parent : parent}${suffix}${isAdj?' +'+Math.round((mult-1)*100)+'%':''}`,ML+2,yL+3.8);
+    doc.text(`${isJ1?'(J+1)':'(Dir)'}  ${parent === membres[0] || membres.includes(parent) ? 'Cuve '+parent : parent}${suffix}${isAdj?' +'+Math.round((mult-1)*100)+'%':''}`,ML+2,yL+3.8);
     doc.setFontSize(9);
     doc.text(`${ptAdj.toFixed(3)} kg`,ML+colLW-2,yL+3.8,{align:'right'});
     yL+=6;
@@ -1961,22 +1967,22 @@ function exportPDF() {
       yL+=3.8;
     });
 
-    // Parts
+    // Parts - afficher uniquement si famille multi-membres ou inclusions
     const partsSans=membres.filter(r=>!(RECETTES[r].inclusions||[]).length);
     const partsAvec=membres.filter(r=>(RECETTES[r].inclusions||[]).length);
-    if(partsSans.length||partsAvec.length){
+    if(partsAvec.length||(partsSans.length>1)||(partsSans.length&&partsAvec.length)){
       const pY=yL;
       partsSans.forEach(r=>{
         const pAdj=getPoidsRec(r)*mult;
         doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.dark);
-        doc.text(`↳ Part ${r} (${pAdj.toFixed(3)} kg) — sans inclusion`,ML+7,yL+3);
+        doc.text(`> Part ${r} (${pAdj.toFixed(3)} kg) - sans inclusion`,ML+7,yL+3);
         yL+=3.5;
       });
       partsAvec.forEach(r=>{
         const p=getPoidsRec(r),pAdj=p*mult;
-        let txt=`↳ Part ${r} (${pAdj.toFixed(3)} kg)`;
+        let txt=`> Part ${r} (${pAdj.toFixed(3)} kg)`;
         (RECETTES[r].inclusions||[]).forEach(inc=>{
-          const q=(p/(1+inc.ratio))*inc.ratio*mult;
+          const q=p*inc.ratio*mult;
           txt+=` + ${inc.ing} ${q.toFixed(3)} kg`;
         });
         doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(174,125,102);
@@ -2038,10 +2044,10 @@ function exportPDF() {
   }
 
   if(recsJ1.length&&recsDirect.length){
-    drawLevGroup(recsJ1,'j1','🌙 Ce soir (J+1)');
-    drawLevGroup(recsDirect,'direct','☀ Demain matin (Direct)');
-  } else if(recsJ1.length){ drawLevGroup(recsJ1,'j1','🌙 Ce soir (J+1)');
-  } else { drawLevGroup(recsDirect,'direct','☀ Demain matin (Direct)'); }
+    drawLevGroup(recsJ1,'j1','(J+1) Ce soir (J+1)');
+    drawLevGroup(recsDirect,'direct','(Dir) Demain matin (Direct)');
+  } else if(recsJ1.length){ drawLevGroup(recsJ1,'j1','(J+1) Ce soir (J+1)');
+  } else { drawLevGroup(recsDirect,'direct','(Dir) Demain matin (Direct)'); }
   yR+=2;
 
   // ── COL DROITE : Pains ──
@@ -2078,12 +2084,12 @@ function exportPDF() {
   // Notes
   doc.setFillColor(249,246,240); doc.roundedRect(colRX,yR,colRW,8,1,1,'F');
   doc.setTextColor(...C.dark); doc.setFont('helvetica','bold'); doc.setFontSize(7);
-  doc.text('📝 Notes',colRX+2,yR+3.5);
+  doc.text(' Notes',colRX+2,yR+3.5);
   doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.grey);
   doc.text('T° labo : _______ °C       T° pâte : _______ °C       Cuit à : _______ °C',colRX+2,yR+7);
 
   // ══════════════════════════════════════════════
-  // PAGE 2 — Bacs
+  // PAGE 2 - Bacs
   // ══════════════════════════════════════════════
   const bacsFlat=[];
   orderedRecettes.forEach(rec=>{(bacs[rec]||[]).forEach(bac=>bacsFlat.push({rec,bac}));});
@@ -2094,7 +2100,7 @@ function exportPDF() {
     let by=MT;
     doc.setFillColor(...C.bacs); doc.rect(ML,by,PW,7,'F');
     doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(10);
-    doc.text(`Bacs de pointage — ${totalBacsN} bacs dans l'ordre de sortie`,ML+3,by+5);
+    doc.text(`Bacs de pointage - ${totalBacsN} bacs dans l'ordre de sortie`,ML+3,by+5);
     doc.setFont('helvetica','normal'); doc.setFontSize(8);
     doc.text(`Fournée du ${date}`,PW+ML-3,by+5,{align:'right'});
     by+=10;
@@ -2122,7 +2128,7 @@ function exportPDF() {
 
       doc.setTextColor(...(bac.prio?C.red:C.dark));
       doc.setFont('helvetica','bold'); doc.setFontSize(12);
-      doc.text((bac.prio?'★ ':'')+(i+1).toString(),bx+2,bacY+5);
+      doc.text((bac.prio?'* ':'')+(i+1).toString(),bx+2,bacY+5);
 
       const tagX=bx+(bac.prio?14:10);
       doc.setFillColor(...C.dark);
@@ -2138,7 +2144,7 @@ function exportPDF() {
       doc.setFontSize(9);
       doc.text(`${poids.toFixed(1)} kg`,bx+bacW-2,bacY+4.5,{align:'right'});
 
-      const fmtsStr=Object.entries(bac.formats||{}).filter(([_,q])=>q>0).map(([f,q])=>`${q}× ${f}`).join(' · ')||'—';
+      const fmtsStr=Object.entries(bac.formats||{}).filter(([_,q])=>q>0).map(([f,q])=>`${q}× ${f}`).join(' · ')||'-';
       doc.setTextColor(...C.grey); doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
       doc.text(fmtsStr,bx+4,bacY+9);
 
@@ -2150,7 +2156,7 @@ function exportPDF() {
   // ── Téléchargement ──
   const dateSafe=date.replace(/\//g,'-');
   doc.save(`Fournée ${dateSafe}.pdf`);
-  showToast('PDF téléchargé ✓');
+  showToast('PDF téléchargé OK');
 }
 
 function exportXLSX() {
@@ -2258,7 +2264,7 @@ function exportXLSX() {
       const pSans=membres.filter(r=>!(RECETTES[r].inclusions||[]).length);
       const pAvec=membres.filter(r=>(RECETTES[r].inclusions||[]).length);
       pSans.forEach(r=>peseesData.push([`  ↳ Part ${r}`,'','(sans inclusion)','','','',(+(getPoidsRec(r)*mult).toFixed(3))]));
-      pAvec.forEach(r=>{const p=getPoidsRec(r);peseesData.push([`  ↳ Part ${r}`,'','','',' ','',+(p*mult).toFixed(3)]);(RECETTES[r].inclusions||[]).forEach(inc=>{const q=(p/(1+inc.ratio))*inc.ratio*mult;peseesData.push(['','','+ '+inc.ing,+inc.ratio.toFixed(3),'','',+q.toFixed(3)]);});});
+      pAvec.forEach(r=>{const p=getPoidsRec(r);peseesData.push([`  ↳ Part ${r}`,'','','',' ','',+(p*mult).toFixed(3)]);(RECETTES[r].inclusions||[]).forEach(inc=>{const q=p*inc.ratio*mult;peseesData.push(['','','+ '+inc.ing,+inc.ratio.toFixed(3),'','',+q.toFixed(3)]);});});
     });
     recsList.filter(rec=>!Array.from(getParentesAvecDecli()).some(p=>getFamille(p).includes(rec)&&selectedRecettes.has(p))).forEach(rec=>{
       const p=getPoidsRec(rec); if(!p) return;
@@ -2402,6 +2408,8 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
 });
 
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
+document.getElementById('btn-export-produits').addEventListener('click', exportProduitsFinis);
+document.getElementById('btn-export-matieres').addEventListener('click', exportMatieresPremières);
 document.getElementById('btn-rec-back').addEventListener('click', () => goTo('screen-selection'));
 document.getElementById('btn-save-rec').addEventListener('click', async () => { showToast('Enregistrement…'); const ok = await fbSet('config', { recettes: RECETTES, formats: FORMATS, levains: LEVAINS }); if (ok) { initQty(); renderSelection(); showToast('Recettes enregistrées ✓'); } });
 
@@ -3331,6 +3339,137 @@ function printFicheJournee() {
   };
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT MIGRATION ODOO
+// 2 fichiers CSV : produits finis + matières premières
+// ═══════════════════════════════════════════════════════════
+
+function downloadCSV(filename, rows) {
+  const NL = String.fromCharCode(10);
+  const bom = '\uFEFF';
+  const csv = bom + rows.map(row =>
+    row.map(cell => {
+      const s = String(cell == null ? '' : cell);
+      if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf(NL) >= 0) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(',')
+  ).join(NL);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportProduitsFinis() {
+  // Colonnes standard pour import Odoo Products
+  // Odoo import format : https://www.odoo.com/documentation/product-import
+  const rows = [
+    ['Nom interne', 'Nom de vente', 'Type de produit', 'Catégorie', 'Unité de mesure', 'Prix de vente', 'Référence interne', 'Notes']
+  ];
+
+  orderedRecettes.forEach(rec => {
+    const recette = RECETTES[rec];
+    if (!recette) return;
+    const formats = FORMATS[rec] || [];
+
+    if (formats.length === 0) {
+      // Recette sans format défini — on l'ajoute quand même
+      rows.push([
+        rec,                    // Nom interne
+        rec,                    // Nom de vente
+        'Produit stockable',    // Type Odoo
+        'Pain',                 // Catégorie
+        'unité(s)',             // UdM
+        '',                     // Prix (à définir dans Odoo)
+        '',                     // Réf interne
+        `Recette: ${rec}`
+      ]);
+    } else {
+      formats.forEach(fmt => {
+        const nomComplet = `${rec} ${fmt.nom}`;
+        const poidsCuitKg = (fmt.poidsCuit || 0).toFixed(3);
+        rows.push([
+          nomComplet,             // Nom interne
+          nomComplet,             // Nom de vente
+          'Produit stockable',
+          'Pain',
+          'unité(s)',
+          '',                     // Prix de vente
+          '',                     // Réf interne — à remplir par le dev Odoo
+          `Poids cuit: ${poidsCuitKg} kg | Recette: ${rec}`
+        ]);
+      });
+    }
+  });
+
+  downloadCSV('migration_odoo_produits_finis.csv', rows);
+  showToast('Produits finis exportés ✓');
+}
+
+function exportMatieresPremières() {
+  // Collecter tous les ingrédients uniques de toutes les recettes + levains
+  const matieres = new Map(); // nom → { unité, utilisé_dans }
+
+  // Depuis les recettes
+  Object.entries(RECETTES).forEach(([rec, data]) => {
+    (data.ingredients || []).forEach(ing => {
+      if (!matieres.has(ing.ing)) {
+        matieres.set(ing.ing, { unite: 'kg', usages: [] });
+      }
+      matieres.get(ing.ing).usages.push(rec);
+    });
+    // Inclusions
+    (data.inclusions || []).forEach(inc => {
+      if (!matieres.has(inc.ing)) {
+        matieres.set(inc.ing, { unite: 'kg', usages: [] });
+      }
+      matieres.get(inc.ing).usages.push(`${rec} (inclusion)`);
+    });
+  });
+
+  // Depuis les levains
+  Object.entries(LEVAINS).forEach(([lev, compos]) => {
+    (compos || []).forEach(c => {
+      if (!matieres.has(c.ing)) {
+        matieres.set(c.ing, { unite: 'kg', usages: [] });
+      }
+      matieres.get(c.ing).usages.push(`Levain ${lev}`);
+    });
+  });
+
+  const rows = [
+    ['Nom interne', 'Nom de vente', 'Type de produit', 'Catégorie', 'Unité de mesure', 'Référence interne', 'Utilisé dans']
+  ];
+
+  // Trier alphabétiquement
+  [...matieres.entries()].sort((a, b) => a[0].localeCompare(b[0], 'fr')).forEach(([nom, data]) => {
+    // Détecter le type (Sel = conservable, Levure = périssable, etc.)
+    const categorie = nom.toLowerCase().includes('levain') ? 'Levain' :
+                      nom.toLowerCase().includes('levure') ? 'Levure' :
+                      nom.toLowerCase().includes('farine') ? 'Farine' :
+                      nom.toLowerCase().includes('sel') ? 'Sel & épices' :
+                      nom.toLowerCase().includes('eau') ? 'Eau' :
+                      nom.toLowerCase().includes('beurre') || nom.toLowerCase().includes('lait') ? 'Produits laitiers' :
+                      'Ingrédient';
+
+    rows.push([
+      nom,
+      nom,
+      'Consommable',
+      categorie,
+      'kg',
+      '',   // Réf interne — à remplir par le dev Odoo
+      [...new Set(data.usages)].join(' | ')
+    ]);
+  });
+
+  downloadCSV('migration_odoo_matieres_premieres.csv', rows);
+  showToast('Matières premières exportées ✓');
+}
 
 // ── AUTHENTIFICATION AU CHARGEMENT ──
 // Avant d'initialiser l'app, on s'assure qu'un utilisateur anonyme est connecté.
