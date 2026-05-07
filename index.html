@@ -2602,7 +2602,7 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
 
 // ── Listeners écran config Odoo ──
-document.getElementById('btn-odoo-config-back').addEventListener('click', () => history.back() || goTo('screen-resume'));
+document.getElementById('btn-odoo-config-back').addEventListener('click', () => goTo('screen-resume'));
 
 document.getElementById('btn-save-odoo-config').addEventListener('click', async () => {
   const url = document.getElementById('odoo-url-input').value.trim();
