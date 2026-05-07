@@ -480,6 +480,7 @@ html, body {
       <div class="section-lbl">Levains à préparer</div>
       <div id="recap-levains"></div>
       <div class="section-lbl">Exporter les documents</div>
+      <div class="export-card" id="exp-odoo-config" style="border-color:var(--tan-dark)"><div><div class="export-title" style="color:var(--dark)">Connexion Odoo</div><div class="export-sub" id="odoo-config-badge">Non configuré</div></div><div class="export-arrow" style="color:var(--tan-dark);font-size:18px">⚙</div></div>
       <div class="export-card" id="exp-pdf"><div><div class="export-title">Résumé PDF</div><div class="export-sub">Imprimable — toutes les pesées</div></div><div class="export-arrow">↓</div></div>
       <div class="export-card" id="exp-xlsx"><div><div class="export-title">Tableur Excel (.xlsx)</div><div class="export-sub">4 onglets : résumé, pesées, levains, bacs</div></div><div class="export-arrow">↓</div></div>
       <div class="export-card" id="exp-fiche-journee"><div><div class="export-title">Fiche de journée</div><div class="export-sub">Pesées + levains + bacs — tout en une page</div></div><div class="export-arrow">↓</div></div>
@@ -530,6 +531,31 @@ html, body {
        Logique : 1 recette par bac strictement.
        Auto-répartition au premier accès, ajustable ensuite.
        ══════════════════════════════════════════════════════ -->
+  <div class="screen" id="screen-odoo-config">
+    <div class="scroll-area">
+      <div class="screen-title">Connexion Odoo</div>
+      <div class="screen-subtitle">Stocké uniquement dans votre navigateur</div>
+      <div style="margin:16px 10px;padding:16px;background:var(--paper);border-radius:12px;border:1px solid var(--tan)">
+        <div style="font-size:12px;color:var(--dark);opacity:0.7;margin-bottom:16px;line-height:1.5">Ces identifiants ne seront jamais envoyés vers Firebase ni visibles dans le code source de l'app.</div>
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--dark);margin-bottom:4px">URL Odoo</label>
+        <input id="odoo-url-input" type="url" placeholder="https://test.lefournildesenfarines.fr" style="display:block;width:100%;padding:10px 12px;border:1.5px solid var(--tan);border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:12px;background:var(--white)">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--dark);margin-bottom:4px">Base de données</label>
+        <input id="odoo-db-input" type="text" placeholder="fournil-enfarines" style="display:block;width:100%;padding:10px 12px;border:1.5px solid var(--tan);border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:12px;background:var(--white)">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--dark);margin-bottom:4px">Identifiant</label>
+        <input id="odoo-user-input" type="text" placeholder="claude" style="display:block;width:100%;padding:10px 12px;border:1.5px solid var(--tan);border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:12px;background:var(--white)">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--dark);margin-bottom:4px">Mot de passe</label>
+        <input id="odoo-pass-input" type="password" placeholder="••••••••" style="display:block;width:100%;padding:10px 12px;border:1.5px solid var(--tan);border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:6px;background:var(--white)">
+        <div style="font-size:11px;color:var(--tan-dark);margin-bottom:18px">⚠ Utilisez un compte dédié avec droits minimaux, pas votre compte admin.</div>
+        <button id="btn-save-odoo-config" style="display:block;width:100%;padding:13px;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Enregistrer et tester la connexion</button>
+        <button id="btn-clear-odoo-config" style="display:block;width:100%;padding:10px;background:transparent;color:var(--tan-dark);border:1px solid var(--tan);border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">Effacer les identifiants</button>
+      </div>
+      <div id="odoo-config-status" style="margin:0 10px 16px;padding:12px;border-radius:8px;font-size:13px;display:none"></div>
+    </div>
+    <div class="bottom-bar">
+      <button class="btn-secondary" id="btn-odoo-config-back">← Résumé</button>
+    </div>
+  </div>
+
   <div class="screen" id="screen-bacs">
     <div class="scroll-area">
       <div class="screen-title">Bacs de pointage</div>
@@ -2408,6 +2434,44 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
 });
 
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
+
+// ── Listeners écran config Odoo ──
+document.getElementById('btn-odoo-config-back').addEventListener('click', () => history.back() || goTo('screen-resume'));
+
+document.getElementById('btn-save-odoo-config').addEventListener('click', async () => {
+  const url = document.getElementById('odoo-url-input').value.trim();
+  const db = document.getElementById('odoo-db-input').value.trim();
+  const user = document.getElementById('odoo-user-input').value.trim();
+  const pass = document.getElementById('odoo-pass-input').value;
+  if (!url || !db || !user || !pass) { showOdooStatus('Veuillez remplir tous les champs.', false); return; }
+  if (pass === '••••••••') {
+    // Mot de passe non modifié — conserver l'ancien
+    const cfg = getOdooConfig();
+    saveOdooConfig({ url, db, user, pass: cfg ? cfg.pass : '' });
+    showOdooStatus('Configuration mise à jour (mot de passe inchangé).', true);
+    return;
+  }
+  showOdooStatus('Test de connexion...', true);
+  try {
+    saveOdooConfig({ url, db, user, pass });
+    await odooAuthenticate();
+    showOdooStatus('✓ Connexion réussie ! Les identifiants sont enregistrés dans votre navigateur.', true);
+  } catch(e) {
+    clearOdooConfig();
+    showOdooStatus('✗ Connexion échouée : ' + e.message, false);
+  }
+});
+
+document.getElementById('btn-clear-odoo-config').addEventListener('click', () => {
+  if (confirm('Effacer les identifiants Odoo de ce navigateur ?')) {
+    clearOdooConfig();
+    document.getElementById('odoo-url-input').value = '';
+    document.getElementById('odoo-db-input').value = '';
+    document.getElementById('odoo-user-input').value = '';
+    document.getElementById('odoo-pass-input').value = '';
+    showOdooStatus('Identifiants effacés.', false);
+  }
+});
 document.getElementById('btn-export-produits').addEventListener('click', exportProduitsFinis);
 document.getElementById('btn-export-matieres').addEventListener('click', exportMatieresPremières);
 document.getElementById('btn-rec-back').addEventListener('click', () => goTo('screen-selection'));
@@ -2502,7 +2566,12 @@ document.getElementById('ajust-modal-confirm').addEventListener('click', () => {
 document.getElementById('exp-fiche-journee').addEventListener('click', printFicheJournee);
 
 document.getElementById('exp-pdf').addEventListener('click', exportPDF);
+document.getElementById('exp-odoo-config').addEventListener('click', () => {
+  initOdooConfigScreen();
+  goTo('screen-odoo-config');
+});
 document.getElementById('exp-xlsx').addEventListener('click', exportXLSX);
+document.getElementById('exp-odoo-config').addEventListener('click', () => { initOdooConfigScreen(); goTo('screen-odoo-config'); });
 
 // ── Exposer sur window les fonctions appelées via onclick inline dans le HTML ──
 // Nécessaire car le script est de type="module" (scope fermé par défaut)
@@ -3469,6 +3538,87 @@ function exportMatieresPremières() {
 
   downloadCSV('migration_odoo_matieres_premieres.csv', rows);
   showToast('Matières premières exportées ✓');
+}
+
+// ═══════════════════════════════════════════════════════════
+// INTÉGRATION ODOO — config localStorage + appels XML-RPC
+// ═══════════════════════════════════════════════════════════
+
+const ODOO_STORAGE_KEY = 'fournil_odoo_config';
+
+function getOdooConfig() {
+  try {
+    const raw = localStorage.getItem(ODOO_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function saveOdooConfig(config) {
+  localStorage.setItem(ODOO_STORAGE_KEY, JSON.stringify(config));
+}
+
+function clearOdooConfig() {
+  localStorage.removeItem(ODOO_STORAGE_KEY);
+}
+
+// Appel XML-RPC Odoo (via proxy CORS si nécessaire)
+async function odooCall(endpoint, method, args) {
+  const cfg = getOdooConfig();
+  if (!cfg) throw new Error('Odoo non configuré');
+  const url = cfg.url.replace(/\/$/, '') + endpoint;
+  const body = JSON.stringify({
+    jsonrpc: '2.0', method: 'call', id: 1,
+    params: { service: endpoint.includes('common') ? 'common' : 'object', method, args }
+  });
+  const resp = await fetch(url.replace('/xmlrpc/2/', '/web/dataset/call_kw').replace('common', ''), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.data?.message || data.error.message);
+  return data.result;
+}
+
+// Authentification Odoo : retourne le uid
+async function odooAuthenticate() {
+  const cfg = getOdooConfig();
+  if (!cfg) throw new Error('Odoo non configuré');
+
+  const resp = await fetch(cfg.url.replace(/\/$/, '') + '/web/session/authenticate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      jsonrpc: '2.0', method: 'call', id: 1,
+      params: { db: cfg.db, login: cfg.user, password: cfg.pass }
+    })
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (!data.result || !data.result.uid) throw new Error('Authentification échouée — vérifiez vos identifiants');
+  return data.result.uid;
+}
+
+// Initialiser l'écran de config Odoo
+function initOdooConfigScreen() {
+  const cfg = getOdooConfig();
+  if (cfg) {
+    document.getElementById('odoo-url-input').value = cfg.url || '';
+    document.getElementById('odoo-db-input').value = cfg.db || '';
+    document.getElementById('odoo-user-input').value = cfg.user || '';
+    document.getElementById('odoo-pass-input').value = cfg.pass ? '••••••••' : '';
+  }
+}
+
+function showOdooStatus(msg, ok) {
+  const el = document.getElementById('odoo-config-status');
+  el.style.display = 'block';
+  el.style.background = ok ? '#EAF3DE' : '#FAF0EE';
+  el.style.color = ok ? '#2D6A47' : '#C73600';
+  el.style.border = `1px solid ${ok ? '#c8dcc0' : '#f0c0a0'}`;
+  el.textContent = msg;
 }
 
 // ── AUTHENTIFICATION AU CHARGEMENT ──
