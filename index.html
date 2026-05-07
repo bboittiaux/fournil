@@ -3751,57 +3751,43 @@ async function odooCall(endpoint, method, args) {
 async function odooAuthenticate() {
   const cfg = getOdooConfig();
   if (!cfg) throw new Error('Odoo non configuré');
-
   const baseUrl = cfg.url.replace(/\/$/, '');
 
-  // Odoo 17/18 : /web/session/authenticate via JSON-RPC
-  // On essaie d'abord sans credentials (évite les problèmes preflight CORS)
-  const tryFetch = async (url, withCredentials) => {
-    return fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      ...(withCredentials ? { credentials: 'include' } : {}),
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'call',
-        id: Math.floor(Math.random() * 10000),
-        params: { db: cfg.db, login: cfg.user, password: cfg.pass }
-      })
-    });
-  };
+  // Odoo 18 — authentification JSON-RPC
+  // Important : PAS de credentials:'include' qui force un preflight OPTIONS
+  // et peut renvoyer 405 sur certaines configs Caddy
+  const resp = await fetch(baseUrl + '/web/session/authenticate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'call',
+      id: 1,
+      params: {
+        db: cfg.db,
+        login: cfg.user,
+        password: cfg.pass
+      }
+    })
+  });
 
-  let resp, data;
+  if (!resp.ok) throw new Error('HTTP ' + resp.status + ' sur /web/session/authenticate');
 
-  // Tentative 1 : endpoint standard avec credentials
-  try {
-    resp = await tryFetch(baseUrl + '/web/session/authenticate', true);
-    if (resp.ok) {
-      data = await resp.json();
-      if (data.result && data.result.uid) return data.result.uid;
-      if (data.result && data.result.uid === false) throw new Error('Identifiants incorrects');
-    }
-  } catch(e) {
-    if (e.message === 'Identifiants incorrects') throw e;
-    // Continuer avec la tentative 2
+  const data = await resp.json();
+
+  if (data.error) {
+    throw new Error(data.error.data?.message || data.error.message || 'Erreur Odoo');
   }
-
-  // Tentative 2 : sans credentials (évite certains problèmes CORS)
-  try {
-    resp = await tryFetch(baseUrl + '/web/session/authenticate', false);
-    if (resp.ok) {
-      data = await resp.json();
-      if (data.result && data.result.uid) return data.result.uid;
-      if (data.result && data.result.uid === false) throw new Error('Identifiants incorrects');
-    }
-    throw new Error('HTTP ' + resp.status);
-  } catch(e) {
-    if (e.message === 'Identifiants incorrects') throw e;
-    throw new Error('Connexion impossible : ' + e.message +
-      ' — Vérifiez que le CORS est bien configuré sur le serveur frontal pour POST /web/session/authenticate');
+  if (!data.result) throw new Error('Réponse inattendue d\'Odoo');
+  if (data.result.uid === false || data.result.uid === null) {
+    throw new Error('Identifiants incorrects — vérifiez login/mot de passe et nom de base');
   }
+  if (!data.result.uid) throw new Error('Authentification échouée');
+
+  return data.result.uid;
 }
 
 // Initialiser l'écran de config Odoo
