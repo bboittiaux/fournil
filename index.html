@@ -3822,11 +3822,10 @@ async function importCommandesOdoo(dateStr) {
   const cfg = getOdooConfig();
   if (!cfg) throw new Error('Odoo non configuré');
 
-  // S'authentifier
+  // Ré-authentifier à chaque import pour garantir une session fraîche
+  // (les sessions Odoo expirent, on ne peut pas les réutiliser côté client)
   await odooAuthenticate();
 
-  // Lire les lignes de commande confirmées pour cette date de livraison
-  // commitment_date = date de livraison Promise au client
   const baseUrl = cfg.url.replace(/\/$/, '');
 
   // Chercher les sale.order avec commitment_date = dateStr et state in ['sale','done']
@@ -3836,9 +3835,11 @@ async function importCommandesOdoo(dateStr) {
     ['commitment_date', '<=', dateStr + ' 23:59:59'],
   ];
 
+  // credentials:'include' nécessaire pour envoyer les cookies de session Odoo
   const resp = await fetch(baseUrl + '/web/dataset/call_kw', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({
       jsonrpc: '2.0', method: 'call', id: Date.now(),
       params: {
