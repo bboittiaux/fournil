@@ -974,7 +974,8 @@ function goTo(id) {
   document.getElementById(id).classList.add('active');
   updateProgress();
   if (id === 'screen-recettes') renderEditor();
-  saveSessionScreen(id); // Persister l'écran actif pour restauration au rechargement
+  if (id === 'screen-resume') updateOdooBadge();
+  saveSessionScreen(id);
 }
 
 function updateProgress() {
@@ -2602,7 +2603,10 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
 
 // ── Listeners écran config Odoo ──
-document.getElementById('btn-odoo-config-back').addEventListener('click', () => goTo('screen-resume'));
+document.getElementById('btn-odoo-config-back').addEventListener('click', () => {
+  goTo('screen-resume');
+  setTimeout(updateOdooBadge, 50); // Délai pour laisser le DOM se mettre à jour
+});
 
 document.getElementById('btn-save-odoo-config').addEventListener('click', async () => {
   const url = document.getElementById('odoo-url-input').value.trim();
@@ -2622,6 +2626,7 @@ document.getElementById('btn-save-odoo-config').addEventListener('click', async 
     saveOdooConfig({ url, db, user, pass });
     await odooAuthenticate();
     showOdooStatus('✓ Connexion réussie ! Les identifiants sont enregistrés dans votre navigateur.', true);
+    updateOdooBadge();
   } catch(e) {
     clearOdooConfig();
     showOdooStatus('✗ Connexion échouée : ' + e.message, false);
@@ -3711,6 +3716,19 @@ function exportMatieresPremières() {
 // ═══════════════════════════════════════════════════════════
 
 const ODOO_STORAGE_KEY = 'fournil_odoo_config';
+
+function updateOdooBadge() {
+  const badgeEl = document.getElementById('odoo-config-badge');
+  if (!badgeEl) return;
+  const cfg = getOdooConfig();
+  if (cfg && cfg.url) {
+    badgeEl.textContent = '✓ ' + cfg.url.replace('https://', '');
+    badgeEl.style.color = '#2D6A47';
+  } else {
+    badgeEl.textContent = 'Non configuré — toucher pour configurer';
+    badgeEl.style.color = 'var(--tan-dark)';
+  }
+}
 
 function getOdooConfig() {
   try {
