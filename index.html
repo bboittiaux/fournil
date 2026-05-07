@@ -460,7 +460,27 @@ html, body {
         <div class="live-total-item"><div class="live-total-val" id="live-pains">0</div><div class="live-total-lbl">pains</div></div>
         <div class="live-total-item"><div class="live-total-val" id="live-kg">0.00</div><div class="live-total-lbl">kg pâte crue</div></div>
       </div>
+      <div id="odoo-import-bar" style="display:none;margin:0 10px 8px;padding:11px 14px;background:var(--paper);border-radius:10px;border:1px solid var(--tan);display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="font-size:12px;color:var(--dark)">
+          <span style="font-weight:700">📦 Commandes Odoo</span>
+          <span id="odoo-import-date-label" style="color:var(--tan-dark);margin-left:6px"></span>
+        </div>
+        <button id="btn-import-odoo" style="padding:7px 14px;background:var(--red);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Importer ↓</button>
+      </div>
       <div id="saisie-formats"></div>
+
+      <!-- Modale import commandes Odoo -->
+      <div id="odoo-import-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.5);z-index:200;align-items:center;justify-content:center">
+        <div style="background:white;border-radius:16px;padding:24px;margin:20px;width:calc(100% - 40px);max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+          <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:6px">Importer les commandes</div>
+          <div style="font-size:13px;color:var(--tan-dark);margin-bottom:18px">Choisissez la date de livraison à récupérer dans Odoo.</div>
+          <label style="display:block;font-size:12px;font-weight:700;color:var(--dark);margin-bottom:6px">Date de livraison</label>
+          <input id="odoo-import-date-input" type="date" style="display:block;width:100%;padding:10px 12px;border:1.5px solid var(--tan);border-radius:8px;font-size:15px;font-family:inherit;margin-bottom:20px;background:var(--white)">
+          <div id="odoo-import-status" style="font-size:12px;color:var(--tan-dark);margin-bottom:12px;min-height:18px"></div>
+          <button id="btn-odoo-import-confirm" style="display:block;width:100%;padding:13px;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Importer les commandes</button>
+          <button id="btn-odoo-import-cancel" style="display:block;width:100%;padding:10px;background:transparent;color:var(--tan-dark);border:1px solid var(--tan);border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+        </div>
+      </div>
     </div>
     <div class="bottom-bar">
       <button class="btn-secondary" id="btn-prev">←</button>
@@ -1019,6 +1039,21 @@ function renderStep() {
   document.getElementById('btn-prev').style.visibility = currentStep === 0 ? 'hidden' : 'visible';
   document.getElementById('btn-next').textContent = currentStep === orderedRecettes.length - 1 ? 'Voir résumé →' : 'Suivant →';
   document.getElementById('saisie-scroll').scrollTop = 0;
+
+  // Afficher le bouton import Odoo uniquement sur la première recette et si Odoo est configuré
+  const importBar = document.getElementById('odoo-import-bar');
+  if (importBar) {
+    if (currentStep === 0 && getOdooConfig()) {
+      importBar.style.display = 'flex';
+      // Pré-remplir le label avec la date mémorisée ou J+1
+      const savedDate = localStorage.getItem('fournil_odoo_import_date');
+      const d = savedDate ? new Date(savedDate) : new Date(Date.now() + 86400000);
+      const label = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+      document.getElementById('odoo-import-date-label').textContent = '— livraison ' + label;
+    } else {
+      importBar.style.display = 'none';
+    }
+  }
 }
 
 function renderFormats(rec) {
@@ -2602,6 +2637,72 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
 
 document.getElementById('btn-go-recettes').addEventListener('click', () => goTo('screen-recettes'));
 
+// ── Listeners import commandes Odoo ──
+function openOdooImportModal() {
+  // Pré-remplir la date : dernière date utilisée ou J+1
+  const saved = localStorage.getItem('fournil_odoo_import_date');
+  const d = saved ? new Date(saved + 'T12:00:00') : new Date(Date.now() + 86400000);
+  const dateStr = d.toISOString().split('T')[0];
+  document.getElementById('odoo-import-date-input').value = dateStr;
+  document.getElementById('odoo-import-status').textContent = '';
+  document.getElementById('odoo-import-modal').style.display = 'flex';
+}
+
+function closeOdooImportModal() {
+  document.getElementById('odoo-import-modal').style.display = 'none';
+}
+
+document.getElementById('btn-import-odoo').addEventListener('click', openOdooImportModal);
+document.getElementById('btn-odoo-import-cancel').addEventListener('click', closeOdooImportModal);
+
+document.getElementById('btn-odoo-import-confirm').addEventListener('click', async () => {
+  const dateStr = document.getElementById('odoo-import-date-input').value;
+  if (!dateStr) { document.getElementById('odoo-import-status').textContent = 'Veuillez choisir une date.'; return; }
+
+  const statusEl = document.getElementById('odoo-import-status');
+  const btnConfirm = document.getElementById('btn-odoo-import-confirm');
+  statusEl.textContent = 'Connexion à Odoo...';
+  statusEl.style.color = 'var(--tan-dark)';
+  btnConfirm.disabled = true;
+
+  try {
+    const lignes = await importCommandesOdoo(dateStr);
+    statusEl.textContent = `${lignes.length} ligne(s) trouvée(s) dans Odoo...`;
+
+    const nb = appliquerCommandesOdoo(lignes);
+
+    // Mémoriser la date pour la prochaine fois
+    localStorage.setItem('fournil_odoo_import_date', dateStr);
+
+    // Mettre à jour le label dans la barre
+    const d = new Date(dateStr + 'T12:00:00');
+    const label = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+    document.getElementById('odoo-import-date-label').textContent = '— livraison ' + label;
+
+    if (nb === 0 && lignes.length > 0) {
+      statusEl.textContent = `⚠ ${lignes.length} commande(s) trouvée(s) mais aucune recette correspondante. Vérifiez le mapping produits.`;
+      statusEl.style.color = 'var(--red)';
+    } else if (nb === 0) {
+      statusEl.textContent = `Aucune commande trouvée pour le ${d.toLocaleDateString('fr-FR')}.`;
+      statusEl.style.color = 'var(--tan-dark)';
+    } else {
+      statusEl.textContent = `✓ ${nb} quantité(s) importée(s) dans le canal Commandes.`;
+      statusEl.style.color = 'var(--green, #2D6A47)';
+      // Fermer et rafraîchir l'affichage après 1.5s
+      setTimeout(() => {
+        closeOdooImportModal();
+        renderStep(); // Actualiser la saisie avec les nouvelles quantités
+        showToast('Commandes Odoo importées ✓');
+      }, 1500);
+    }
+  } catch(e) {
+    statusEl.textContent = '✗ ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    btnConfirm.disabled = false;
+  }
+});
+
 // ── Listeners écran config Odoo ──
 document.getElementById('btn-odoo-config-back').addEventListener('click', () => {
   goTo('screen-resume');
@@ -3714,6 +3815,94 @@ function exportMatieresPremières() {
 // ═══════════════════════════════════════════════════════════
 // INTÉGRATION ODOO — config localStorage + appels XML-RPC
 // ═══════════════════════════════════════════════════════════
+
+// Lire les commandes Odoo pour une date donnée
+// Retourne un tableau { recetteApp, formatApp, quantite }
+async function importCommandesOdoo(dateStr) {
+  const cfg = getOdooConfig();
+  if (!cfg) throw new Error('Odoo non configuré');
+
+  // S'authentifier
+  await odooAuthenticate();
+
+  // Lire les lignes de commande confirmées pour cette date de livraison
+  // commitment_date = date de livraison Promise au client
+  const baseUrl = cfg.url.replace(/\/$/, '');
+
+  // Chercher les sale.order avec commitment_date = dateStr et state in ['sale','done']
+  const domaine = [
+    ['state', 'in', ['sale', 'done']],
+    ['commitment_date', '>=', dateStr + ' 00:00:00'],
+    ['commitment_date', '<=', dateStr + ' 23:59:59'],
+  ];
+
+  const resp = await fetch(baseUrl + '/web/dataset/call_kw', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', method: 'call', id: Date.now(),
+      params: {
+        model: 'sale.order.line',
+        method: 'search_read',
+        args: [[
+          ['order_id.state', 'in', ['sale', 'done']],
+          ['order_id.commitment_date', '>=', dateStr + ' 00:00:00'],
+          ['order_id.commitment_date', '<=', dateStr + ' 23:59:59'],
+        ]],
+        kwargs: {
+          fields: ['product_id', 'product_uom_qty', 'name'],
+          limit: 200,
+          context: {}
+        }
+      }
+    })
+  });
+
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.data?.message || data.error.message);
+  return data.result || [];
+}
+
+// Appliquer les commandes Odoo dans qty[]
+// Stratégie : remplacer le canal "Commandes" puis laisser l'utilisateur ajuster
+function appliquerCommandesOdoo(lignes) {
+  let nbImportees = 0;
+  const canalCommandes = CANAUX.find(c => c.toLowerCase().includes('comm')) || CANAUX[2];
+
+  lignes.forEach(ligne => {
+    const nomProduit = ligne.product_id?.[1] || '';
+    const qte = Math.round(ligne.product_uom_qty || 0);
+    if (!qte) return;
+
+    // Chercher la recette et le format correspondants
+    // Correspondance par nom de produit Odoo : "Campagne 500g" → rec=Campagne, fmt=500g
+    // On cherche dans RECETTES + FORMATS le meilleur match
+    let bestRec = null, bestFmt = null;
+
+    orderedRecettes.forEach(rec => {
+      (FORMATS[rec] || []).forEach(fmt => {
+        const nomApp = `${rec} ${fmt.nom}`.toLowerCase();
+        const nomOdoo = nomProduit.toLowerCase();
+        if (nomOdoo === nomApp || nomOdoo.includes(nomApp) || nomApp.includes(nomOdoo)) {
+          bestRec = rec;
+          bestFmt = fmt.nom;
+        }
+      });
+    });
+
+    if (bestRec && bestFmt) {
+      if (!qty[bestRec]) qty[bestRec] = {};
+      if (!qty[bestRec][bestFmt]) {
+        CANAUX.forEach(c => { if (!qty[bestRec][bestFmt]) qty[bestRec][bestFmt] = {}; qty[bestRec][bestFmt][c] = qty[bestRec][bestFmt][c] || 0; });
+      }
+      qty[bestRec][bestFmt][canalCommandes] = qte;
+      nbImportees++;
+    }
+  });
+
+  return nbImportees;
+}
 
 const ODOO_STORAGE_KEY = 'fournil_odoo_config';
 
