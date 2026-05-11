@@ -460,13 +460,6 @@ html, body {
         <div class="live-total-item"><div class="live-total-val" id="live-pains">0</div><div class="live-total-lbl">pains</div></div>
         <div class="live-total-item"><div class="live-total-val" id="live-kg">0.00</div><div class="live-total-lbl">kg pâte crue</div></div>
       </div>
-      <div id="odoo-import-bar" style="display:none;margin:0 10px 8px;padding:11px 14px;background:var(--paper);border-radius:10px;border:1px solid var(--tan);display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div style="font-size:12px;color:var(--dark)">
-          <span style="font-weight:700">📦 Commandes Odoo</span>
-          <span id="odoo-import-date-label" style="color:var(--tan-dark);margin-left:6px"></span>
-        </div>
-        <button id="btn-import-odoo" style="padding:7px 14px;background:var(--red);color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Importer ↓</button>
-      </div>
       <div id="saisie-formats"></div>
 
       <!-- Modale import commandes Odoo -->
@@ -485,6 +478,7 @@ html, body {
     <div class="bottom-bar">
       <button class="btn-secondary" id="btn-prev">←</button>
       <button class="btn-secondary" id="btn-go-sel">Sélection</button>
+      <button id="btn-import-odoo" style="display:none;padding:0 12px;height:44px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">📦 Odoo</button>
       <button class="btn-primary" id="btn-next">Suivant →</button>
       <button class="btn-reset" id="btn-raz">RAZ</button>
     </div>
@@ -1040,19 +1034,10 @@ function renderStep() {
   document.getElementById('btn-next').textContent = currentStep === orderedRecettes.length - 1 ? 'Voir résumé →' : 'Suivant →';
   document.getElementById('saisie-scroll').scrollTop = 0;
 
-  // Afficher le bouton import Odoo uniquement sur la première recette et si Odoo est configuré
-  const importBar = document.getElementById('odoo-import-bar');
-  if (importBar) {
-    if (currentStep === 0 && getOdooConfig()) {
-      importBar.style.display = 'flex';
-      // Pré-remplir le label avec la date mémorisée ou J+1
-      const savedDate = localStorage.getItem('fournil_odoo_import_date');
-      const d = savedDate ? new Date(savedDate) : new Date(Date.now() + 86400000);
-      const label = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-      document.getElementById('odoo-import-date-label').textContent = '— livraison ' + label;
-    } else {
-      importBar.style.display = 'none';
-    }
+  // Afficher le bouton Odoo dans la bottom bar si Odoo est configuré
+  const btnImportOdoo = document.getElementById('btn-import-odoo');
+  if (btnImportOdoo) {
+    btnImportOdoo.style.display = getOdooConfig() ? 'block' : 'none';
   }
 }
 
