@@ -2725,8 +2725,8 @@ document.getElementById('btn-save-odoo-config').addEventListener('click', async 
   showOdooStatus('Test de connexion...', true);
   try {
     saveOdooConfig({ url, db, user, pass });
-    await odooAuthenticate();
-    showOdooStatus('✓ Connexion réussie ! Les identifiants sont enregistrés dans votre navigateur.', true);
+    const uid = await odooAuthenticate();
+    showOdooStatus(`✓ Connexion réussie (UID: ${uid}) — identifiants enregistrés dans votre navigateur.`, true);
     updateOdooBadge();
   } catch(e) {
     clearOdooConfig();
@@ -3956,46 +3956,61 @@ async function odooCall(endpoint, method, args) {
 }
 
 // Authentification Odoo : retourne le uid
+// Authentifie via /jsonrpc (XML-RPC over JSON) — stateless, sans cookies
+// Retourne { uid, db, pass } pour les appels suivants
 async function odooAuthenticate() {
   const cfg = getOdooConfig();
   if (!cfg) throw new Error('Odoo non configuré');
   const baseUrl = cfg.url.replace(/\/$/, '');
 
-  // Odoo 18 — authentification JSON-RPC
-  // Important : PAS de credentials:'include' qui force un preflight OPTIONS
-  // et peut renvoyer 405 sur certaines configs Caddy
+  // /web/session/authenticate avec credentials:include
+  // → crée une session Odoo ET stocke le cookie dans le navigateur
+  // → nécessaire pour que call_kw fonctionne ensuite
   const resp = await fetch(baseUrl + '/web/session/authenticate', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'call',
-      id: 1,
+      jsonrpc: '2.0', method: 'call', id: 1,
+      params: { db: cfg.db, login: cfg.user, password: cfg.pass }
+    })
+  });
+
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.data?.message || data.error.message || 'Erreur Odoo');
+  if (!data.result) throw new Error('Réponse inattendue');
+  if (data.result.uid === false || data.result.uid === null || !data.result.uid) {
+    throw new Error('Identifiants incorrects — vérifiez login/mot de passe et nom de base');
+  }
+  return data.result.uid;
+}
+
+// Appel de données Odoo via /jsonrpc — stateless, sans cookies
+async function odooExecute(model, method, args, kwargs = {}) {
+  const cfg = getOdooConfig();
+  if (!cfg) throw new Error('Odoo non configuré');
+  const baseUrl = cfg.url.replace(/\/$/, '');
+
+  const uid = await odooAuthenticate();
+
+  const resp = await fetch(baseUrl + '/jsonrpc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', method: 'call', id: Date.now(),
       params: {
-        db: cfg.db,
-        login: cfg.user,
-        password: cfg.pass
+        service: 'object',
+        method: 'execute_kw',
+        args: [cfg.db, uid, cfg.pass, model, method, args, kwargs]
       }
     })
   });
 
-  if (!resp.ok) throw new Error('HTTP ' + resp.status + ' sur /web/session/authenticate');
-
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const data = await resp.json();
-
-  if (data.error) {
-    throw new Error(data.error.data?.message || data.error.message || 'Erreur Odoo');
-  }
-  if (!data.result) throw new Error('Réponse inattendue d\'Odoo');
-  if (data.result.uid === false || data.result.uid === null) {
-    throw new Error('Identifiants incorrects — vérifiez login/mot de passe et nom de base');
-  }
-  if (!data.result.uid) throw new Error('Authentification échouée');
-
-  return data.result.uid;
+  if (data.error) throw new Error(data.error.data?.message || data.error.message || 'Erreur Odoo');
+  return data.result;
 }
 
 // Initialiser l'écran de config Odoo
