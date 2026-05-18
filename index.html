@@ -2662,7 +2662,7 @@ document.getElementById('btn-odoo-import-confirm').addEventListener('click', asy
     // Mettre à jour le label dans la barre
     const d = new Date(dateStr + 'T12:00:00');
     const label = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-    document.getElementById('odoo-import-date-label').textContent = '— livraison ' + label;
+    // label supprimé avec l'ancienne barre — bouton bottom bar sans label de date
 
     if (nb === 0 && lignes.length > 0) {
       statusEl.textContent = `⚠ ${lignes.length} commande(s) trouvée(s) mais aucune recette correspondante. Vérifiez le mapping produits.`;
