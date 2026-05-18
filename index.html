@@ -3691,44 +3691,56 @@ function downloadCSV(filename, rows) {
 }
 
 function exportProduitsFinis() {
-  // Colonnes standard pour import Odoo Products
-  // Odoo import format : https://www.odoo.com/documentation/product-import
-  const rows = [
-    ['Nom interne', 'Nom de vente', 'Type de produit', 'Catégorie', 'Unité de mesure', 'Prix de vente', 'Référence interne', 'Notes']
-  ];
-
-  // Toutes les recettes Firebase, pas uniquement celles sélectionnées
+  // Collecter tous les ingrédients uniques pour en faire des colonnes
+  const tousIngs = new Set();
   const toutesRecettes = Object.keys(RECETTES);
+  toutesRecettes.forEach(rec => {
+    (RECETTES[rec].ingredients || []).forEach(i => tousIngs.add(i.ing));
+    (RECETTES[rec].inclusions || []).forEach(i => tousIngs.add('incl:' + i.ing));
+  });
+  const ingsListe = [...tousIngs].sort();
+
+  // En-têtes
+  const headers = [
+    'Nom interne', 'Nom de vente', 'Type de produit', 'Catégorie',
+    'Unité de mesure', 'Poids cuit (kg)', 'Perte cuisson',
+    'Référence interne', 'Notes',
+    ...ingsListe.map(i => i.startsWith('incl:') ? `[Inclusion] ${i.slice(5)}` : i)
+  ];
+  const rows = [headers];
+
   toutesRecettes.forEach(rec => {
     const recette = RECETTES[rec];
     if (!recette) return;
     const formats = FORMATS[rec] || [];
+    const perte = recette.perte || PERTE_CUISSON_DEFAUT;
+
+    // Normaliser les ratios (somme des ratios de base = dénominateur)
+    const ings = recette.ingredients || [];
+    const denom = ings.reduce((s, i) => s + i.ratio, 0);
+
+    const ingMap = {};
+    ings.forEach(i => { ingMap[i.ing] = i.ratio; });
+    const inclMap = {};
+    (recette.inclusions || []).forEach(i => { inclMap['incl:' + i.ing] = i.ratio; });
 
     if (formats.length === 0) {
-      // Recette sans format défini — on l'ajoute quand même
-      rows.push([
-        rec,                    // Nom interne
-        rec,                    // Nom de vente
-        'Produit stockable',    // Type Odoo
-        'Pain',                 // Catégorie
-        'unité(s)',             // UdM
-        '',                     // Prix (à définir dans Odoo)
-        '',                     // Réf interne
-        `Recette: ${rec}`
-      ]);
+      const ratiosCols = ingsListe.map(k => {
+        if (k.startsWith('incl:')) return inclMap[k] !== undefined ? inclMap[k] : '';
+        return ingMap[k] !== undefined ? (ingMap[k] / denom).toFixed(4) : '';
+      });
+      rows.push([rec, rec, 'Produit stockable', 'Pain', 'unité(s)', '', perte, '', `Recette: ${rec}`, ...ratiosCols]);
     } else {
       formats.forEach(fmt => {
-        const nomComplet = `${rec} ${fmt.nom}`;
-        const poidsCuitKg = (fmt.poidsCuit || 0).toFixed(3);
-        rows.push([
-          nomComplet,             // Nom interne
-          nomComplet,             // Nom de vente
-          'Produit stockable',
-          'Pain',
-          'unité(s)',
-          '',                     // Prix de vente
-          '',                     // Réf interne — à remplir par le dev Odoo
-          `Poids cuit: ${poidsCuitKg} kg | Recette: ${rec}`
+        const nom = `${rec} ${fmt.nom}`;
+        const ratiosCols = ingsListe.map(k => {
+          if (k.startsWith('incl:')) return inclMap[k] !== undefined ? inclMap[k] : '';
+          return ingMap[k] !== undefined ? (ingMap[k] / denom).toFixed(4) : '';
+        });
+        rows.push([nom, nom, 'Produit stockable', 'Pain', 'unité(s)',
+          fmt.poidsCuit || '', perte, '',
+          `Poids cuit: ${(fmt.poidsCuit || 0).toFixed(3)} kg | Recette: ${rec}`,
+          ...ratiosCols
         ]);
       });
     }
