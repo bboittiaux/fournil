@@ -3697,7 +3697,9 @@ function exportProduitsFinis() {
     ['Nom interne', 'Nom de vente', 'Type de produit', 'Catégorie', 'Unité de mesure', 'Prix de vente', 'Référence interne', 'Notes']
   ];
 
-  orderedRecettes.forEach(rec => {
+  // Toutes les recettes Firebase, pas uniquement celles sélectionnées
+  const toutesRecettes = Object.keys(RECETTES);
+  toutesRecettes.forEach(rec => {
     const recette = RECETTES[rec];
     if (!recette) return;
     const formats = FORMATS[rec] || [];
