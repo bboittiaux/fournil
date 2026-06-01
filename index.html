@@ -445,7 +445,7 @@ html, body {
     </div>
     <div class="bottom-bar">
       <button class="btn-reset" id="btn-reset-sel">Tout décocher</button>
-      <button id="btn-import-odoo-sel" style="display:none;padding:0 12px;height:44px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">📦 Odoo</button>
+      <button id="btn-import-odoo-sel" style="display:none;padding:0 12px;height:44px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;position:relative;z-index:10">📦 Odoo</button>
       <button class="btn-primary" id="btn-start" disabled>Commencer →</button>
     </div>
   </div>
@@ -462,19 +462,6 @@ html, body {
         <div class="live-total-item"><div class="live-total-val" id="live-kg">0.00</div><div class="live-total-lbl">kg pâte crue</div></div>
       </div>
       <div id="saisie-formats"></div>
-
-      <!-- Modale import commandes Odoo -->
-      <div id="odoo-import-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.5);z-index:200;align-items:center;justify-content:center">
-        <div style="background:white;border-radius:16px;padding:24px;margin:20px;width:calc(100% - 40px);max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
-          <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:6px">Importer les commandes</div>
-          <div style="font-size:13px;color:var(--tan-dark);margin-bottom:18px">Choisissez la date de livraison à récupérer dans Odoo.</div>
-          <label style="display:block;font-size:12px;font-weight:700;color:var(--dark);margin-bottom:6px">Date de livraison</label>
-          <input id="odoo-import-date-input" type="date" style="display:block;width:100%;padding:10px 12px;border:1.5px solid var(--tan);border-radius:8px;font-size:15px;font-family:inherit;margin-bottom:20px;background:var(--white)">
-          <div id="odoo-import-status" style="font-size:12px;color:var(--tan-dark);margin-bottom:12px;min-height:18px"></div>
-          <button id="btn-odoo-import-confirm" style="display:block;width:100%;padding:13px;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Importer les commandes</button>
-          <button id="btn-odoo-import-cancel" style="display:block;width:100%;padding:10px;background:transparent;color:var(--tan-dark);border:1px solid var(--tan);border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
-        </div>
-      </div>
     </div>
     <div class="bottom-bar">
       <button class="btn-secondary" id="btn-prev">←</button>
@@ -1003,13 +990,32 @@ function updateProgress() {
 }
 
 // ── 7. RENDU SAISIE (Event Delegation) ──
-function startSaisie() {
+function doStartSaisie() {
   orderedRecettes = [];
   getParentesAvecDecli().forEach(parent => { getFamille(parent).filter(r => selectedRecettes.has(r)).forEach(r => orderedRecettes.push(r)); });
   getAutresSimples().filter(r => selectedRecettes.has(r)).forEach(r => orderedRecettes.push(r));
   currentStep = 0;
   renderStep();
   goTo('screen-saisie');
+}
+
+function startSaisie() {
+  // Si Odoo est configuré, demander confirmation avant la saisie
+  if (getOdooConfig()) {
+    const modal = document.getElementById('odoo-confirm-modal');
+    const msg = document.getElementById('odoo-confirm-msg');
+    const lastDate = localStorage.getItem('fournil_odoo_import_date');
+    if (lastDate) {
+      const d = new Date(lastDate + 'T12:00:00');
+      const label = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      msg.innerHTML = `Dernière importation : commandes du <strong>${label}</strong>.<br><br>Tu veux importer les commandes avant de commencer la saisie ?`;
+    } else {
+      msg.innerHTML = `Odoo est connecté. Tu veux importer les commandes avant de commencer la saisie ?`;
+    }
+    modal.style.display = 'flex';
+  } else {
+    doStartSaisie();
+  }
 }
 
 function renderStep() {
@@ -2643,6 +2649,24 @@ function closeOdooImportModal() {
 
 document.getElementById('btn-import-odoo').addEventListener('click', openOdooImportModal);
 document.getElementById('btn-import-odoo-sel').addEventListener('click', openOdooImportModal);
+
+// ── Listeners modale confirmation Odoo avant saisie ──
+document.getElementById('btn-odoo-confirm-cancel').addEventListener('click', () => {
+  document.getElementById('odoo-confirm-modal').style.display = 'none';
+});
+
+document.getElementById('btn-odoo-confirm-skip').addEventListener('click', () => {
+  document.getElementById('odoo-confirm-modal').style.display = 'none';
+  doStartSaisie();
+});
+
+document.getElementById('btn-odoo-confirm-import').addEventListener('click', () => {
+  document.getElementById('odoo-confirm-modal').style.display = 'none';
+  // Ouvrir la modale d'import, puis démarrer la saisie après import réussi
+  openOdooImportModal();
+  // Flag pour indiquer qu'après l'import on démarre la saisie
+  window._odooImportThenStart = true;
+});
 document.getElementById('btn-odoo-import-cancel').addEventListener('click', closeOdooImportModal);
 
 document.getElementById('btn-odoo-import-confirm').addEventListener('click', async () => {
@@ -2678,7 +2702,11 @@ document.getElementById('btn-odoo-import-confirm').addEventListener('click', asy
       statusEl.style.color = 'var(--green, #2D6A47)';
       setTimeout(() => {
         closeOdooImportModal();
-        if (depuisSelection) {
+        if (window._odooImportThenStart) {
+          window._odooImportThenStart = false;
+          doStartSaisie();
+          showToast('Commandes importées ✓');
+        } else if (depuisSelection) {
           updateSelUI();
           showToast('Commandes importées — recettes pré-cochées ✓');
         } else {
@@ -4075,5 +4103,29 @@ onAuthStateChanged(auth, user => {
   }
 });
 </script>
+  <!-- Modale confirmation import Odoo avant saisie -->
+  <div id="odoo-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:16px;padding:24px;margin:20px;width:calc(100% - 40px);max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:8px">Commandes Odoo</div>
+      <div id="odoo-confirm-msg" style="font-size:13px;color:var(--tan-dark);margin-bottom:20px;line-height:1.5"></div>
+      <button id="btn-odoo-confirm-import" style="display:block;width:100%;padding:12px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">📦 Importer les commandes</button>
+      <button id="btn-odoo-confirm-skip" style="display:block;width:100%;padding:12px;background:var(--red);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Continuer sans importer →</button>
+      <button id="btn-odoo-confirm-cancel" style="display:block;width:100%;padding:10px;background:transparent;color:var(--tan-dark);border:1px solid var(--tan);border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+
+  <!-- Modale import commandes Odoo — globale, hors de tous les écrans -->
+  <div id="odoo-import-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:16px;padding:24px;margin:20px;width:calc(100% - 40px);max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:6px">Importer les commandes</div>
+      <div style="font-size:13px;color:var(--tan-dark);margin-bottom:18px">Choisissez la date de livraison à récupérer dans Odoo.</div>
+      <label style="display:block;font-size:12px;font-weight:700;color:var(--dark);margin-bottom:6px">Date de livraison</label>
+      <input id="odoo-import-date-input" type="date" style="display:block;width:100%;padding:10px 12px;border:1.5px solid var(--tan);border-radius:8px;font-size:15px;font-family:inherit;margin-bottom:20px;background:var(--white)">
+      <div id="odoo-import-status" style="font-size:12px;color:var(--tan-dark);margin-bottom:12px;min-height:18px"></div>
+      <button id="btn-odoo-import-confirm" style="display:block;width:100%;padding:13px;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Importer les commandes</button>
+      <button id="btn-odoo-import-cancel" style="display:block;width:100%;padding:10px;background:transparent;color:var(--tan-dark);border:1px solid var(--tan);border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+    </div>
+  </div>
+
 </body>
 </html>
