@@ -445,6 +445,7 @@ html, body {
     </div>
     <div class="bottom-bar">
       <button class="btn-reset" id="btn-reset-sel">Tout décocher</button>
+      <button id="btn-import-odoo-sel" style="display:none;padding:0 12px;height:44px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">📦 Odoo</button>
       <button class="btn-primary" id="btn-start" disabled>Commencer →</button>
     </div>
   </div>
@@ -980,6 +981,9 @@ function updateSelUI() {
     if (grp) grp.classList.toggle('any-selected', getFamille(parent).some(r => selectedRecettes.has(r)));
   });
   document.getElementById('btn-start').disabled = selectedRecettes.size === 0;
+  // Afficher le bouton Odoo si configuré
+  const btnOdooSel = document.getElementById('btn-import-odoo-sel');
+  if (btnOdooSel) btnOdooSel.style.display = getOdooConfig() ? 'block' : 'none';
 }
 
 // ── NAVIGATION GLOBALE ──
@@ -2638,6 +2642,7 @@ function closeOdooImportModal() {
 }
 
 document.getElementById('btn-import-odoo').addEventListener('click', openOdooImportModal);
+document.getElementById('btn-import-odoo-sel').addEventListener('click', openOdooImportModal);
 document.getElementById('btn-odoo-import-cancel').addEventListener('click', closeOdooImportModal);
 
 document.getElementById('btn-odoo-import-confirm').addEventListener('click', async () => {
@@ -2654,15 +2659,11 @@ document.getElementById('btn-odoo-import-confirm').addEventListener('click', asy
     const lignes = await importCommandesOdoo(dateStr);
     statusEl.textContent = `${lignes.length} ligne(s) trouvée(s) dans Odoo...`;
 
-    const nb = appliquerCommandesOdoo(lignes);
+    const depuisSelection = document.getElementById('screen-selection').classList.contains('active');
+    const { nbImportees: nb, nbSelectionnes } = appliquerCommandesOdoo(lignes, depuisSelection);
 
-    // Mémoriser la date pour la prochaine fois
     localStorage.setItem('fournil_odoo_import_date', dateStr);
-
-    // Mettre à jour le label dans la barre
     const d = new Date(dateStr + 'T12:00:00');
-    const label = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-    // label supprimé avec l'ancienne barre — bouton bottom bar sans label de date
 
     if (nb === 0 && lignes.length > 0) {
       statusEl.textContent = `⚠ ${lignes.length} commande(s) trouvée(s) mais aucune recette correspondante. Vérifiez le mapping produits.`;
@@ -2671,13 +2672,19 @@ document.getElementById('btn-odoo-import-confirm').addEventListener('click', asy
       statusEl.textContent = `Aucune commande trouvée pour le ${d.toLocaleDateString('fr-FR')}.`;
       statusEl.style.color = 'var(--tan-dark)';
     } else {
-      statusEl.textContent = `✓ ${nb} quantité(s) importée(s) dans le canal Commandes.`;
+      let msg = `✓ ${nb} quantité(s) importée(s)`;
+      if (nbSelectionnes > 0) msg += ` · ${nbSelectionnes} recette(s) ajoutée(s) à la sélection`;
+      statusEl.textContent = msg;
       statusEl.style.color = 'var(--green, #2D6A47)';
-      // Fermer et rafraîchir l'affichage après 1.5s
       setTimeout(() => {
         closeOdooImportModal();
-        renderStep(); // Actualiser la saisie avec les nouvelles quantités
-        showToast('Commandes Odoo importées ✓');
+        if (depuisSelection) {
+          updateSelUI();
+          showToast('Commandes importées — recettes pré-cochées ✓');
+        } else {
+          renderStep();
+          showToast('Commandes Odoo importées ✓');
+        }
       }, 1500);
     }
   } catch(e) {
@@ -3866,25 +3873,25 @@ async function importCommandesOdoo(dateStr) {
 
 // Appliquer les commandes Odoo dans qty[]
 // Stratégie : remplacer le canal "Commandes" puis laisser l'utilisateur ajuster
-function appliquerCommandesOdoo(lignes) {
+function appliquerCommandesOdoo(lignes, depuisSelection = false) {
   let nbImportees = 0;
+  let nbSelectionnes = 0;
   const canalCommandes = CANAUX.find(c => c.toLowerCase().includes('comm')) || CANAUX[2];
 
+  // Chercher dans TOUTES les recettes Firebase (pas seulement orderedRecettes)
+  const toutesRecs = Object.keys(RECETTES);
+
   lignes.forEach(ligne => {
-    const nomProduit = ligne.product_id?.[1] || '';
+    const nomProduit = (ligne.product_id?.[1] || '').toLowerCase().trim();
     const qte = Math.round(ligne.product_uom_qty || 0);
     if (!qte) return;
 
-    // Chercher la recette et le format correspondants
-    // Correspondance par nom de produit Odoo : "Campagne 500g" → rec=Campagne, fmt=500g
-    // On cherche dans RECETTES + FORMATS le meilleur match
     let bestRec = null, bestFmt = null;
 
-    orderedRecettes.forEach(rec => {
+    toutesRecs.forEach(rec => {
       (FORMATS[rec] || []).forEach(fmt => {
-        const nomApp = `${rec} ${fmt.nom}`.toLowerCase();
-        const nomOdoo = nomProduit.toLowerCase();
-        if (nomOdoo === nomApp || nomOdoo.includes(nomApp) || nomApp.includes(nomOdoo)) {
+        const nomApp = `${rec} ${fmt.nom}`.toLowerCase().trim();
+        if (nomProduit === nomApp || nomProduit.includes(nomApp) || nomApp.includes(nomProduit)) {
           bestRec = rec;
           bestFmt = fmt.nom;
         }
@@ -3892,16 +3899,29 @@ function appliquerCommandesOdoo(lignes) {
     });
 
     if (bestRec && bestFmt) {
+      // Si depuis la sélection et recette pas encore sélectionnée → la sélectionner
+      if (depuisSelection && !selectedRecettes.has(bestRec)) {
+        selectedRecettes.add(bestRec);
+        nbSelectionnes++;
+      }
+
+      // Initialiser qty si nécessaire
       if (!qty[bestRec]) qty[bestRec] = {};
       if (!qty[bestRec][bestFmt]) {
-        CANAUX.forEach(c => { if (!qty[bestRec][bestFmt]) qty[bestRec][bestFmt] = {}; qty[bestRec][bestFmt][c] = qty[bestRec][bestFmt][c] || 0; });
+        qty[bestRec][bestFmt] = {};
+        CANAUX.forEach(c => { qty[bestRec][bestFmt][c] = 0; });
       }
       qty[bestRec][bestFmt][canalCommandes] = qte;
       nbImportees++;
     }
   });
 
-  return nbImportees;
+  // Si depuis la sélection, mettre à jour l'UI de sélection
+  if (depuisSelection && nbSelectionnes > 0) {
+    updateSelUI();
+  }
+
+  return { nbImportees, nbSelectionnes };
 }
 
 const ODOO_STORAGE_KEY = 'fournil_odoo_config';
