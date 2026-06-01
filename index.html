@@ -1008,9 +1008,9 @@ function startSaisie() {
     if (lastDate) {
       const d = new Date(lastDate + 'T12:00:00');
       const label = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-      msg.innerHTML = `Dernière importation : commandes du <strong>${label}</strong>.<br><br>Tu veux importer les commandes avant de commencer la saisie ?`;
+      msg.innerHTML = `✓ Commandes du <strong>${label}</strong> déjà importées.<br><br>Tu peux commencer la saisie directement, ou réimporter si les commandes ont changé.`;
     } else {
-      msg.innerHTML = `Odoo est connecté. Tu veux importer les commandes avant de commencer la saisie ?`;
+      msg.innerHTML = `Odoo est connecté mais aucune importation n'a encore été faite.<br><br>Tu veux importer les commandes avant de commencer ?`;
     }
     modal.style.display = 'flex';
   } else {
@@ -4109,7 +4109,7 @@ onAuthStateChanged(auth, user => {
       <div style="font-size:16px;font-weight:700;color:var(--dark);margin-bottom:8px">Commandes Odoo</div>
       <div id="odoo-confirm-msg" style="font-size:13px;color:var(--tan-dark);margin-bottom:20px;line-height:1.5"></div>
       <button id="btn-odoo-confirm-import" style="display:block;width:100%;padding:12px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">📦 Importer les commandes</button>
-      <button id="btn-odoo-confirm-skip" style="display:block;width:100%;padding:12px;background:var(--red);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Continuer sans importer →</button>
+      <button id="btn-odoo-confirm-skip" style="display:block;width:100%;padding:12px;background:var(--red);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Commencer la saisie →</button>
       <button id="btn-odoo-confirm-cancel" style="display:block;width:100%;padding:10px;background:transparent;color:var(--tan-dark);border:1px solid var(--tan);border-radius:10px;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
     </div>
   </div>
