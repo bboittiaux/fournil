@@ -467,7 +467,6 @@ html, body {
       <button class="btn-secondary" id="btn-prev">←</button>
       <button class="btn-secondary" id="btn-go-sel">Sélection</button>
       <button id="btn-import-odoo" style="display:none;padding:0 12px;height:44px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">📦 Odoo</button>
-      <button id="btn-stock-odoo" style="display:none;padding:0 12px;height:44px;background:var(--green,#2D6A47);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">📤 Stock MP</button>
       <button class="btn-primary" id="btn-next">Suivant →</button>
       <button class="btn-reset" id="btn-raz">RAZ</button>
     </div>
@@ -486,6 +485,7 @@ html, body {
       <div class="export-card" id="exp-odoo-config" style="border-color:var(--tan-dark)"><div><div class="export-title" style="color:var(--dark)">Connexion Odoo</div><div class="export-sub" id="odoo-config-badge">Non configuré</div></div><div class="export-arrow" style="color:var(--tan-dark);font-size:18px">⚙</div></div>
       <div class="export-card" id="exp-pdf"><div><div class="export-title">Résumé PDF</div><div class="export-sub">Imprimable — toutes les pesées</div></div><div class="export-arrow">↓</div></div>
       <div class="export-card" id="exp-xlsx"><div><div class="export-title">Tableur Excel (.xlsx)</div><div class="export-sub">4 onglets : résumé, pesées, levains, bacs</div></div><div class="export-arrow">↓</div></div>
+      <div class="export-card" id="exp-stock-odoo" style="display:none;border-color:#2D6A47"><div><div class="export-title" style="color:#2D6A47">📤 Envoyer les stocks vers Odoo</div><div class="export-sub">Sorties MP + entrées PF — fournée terminée</div></div><div class="export-arrow" style="color:#2D6A47">→</div></div>
 
     </div>
     <div class="bottom-bar">
@@ -1050,10 +1050,7 @@ function renderStep() {
   if (btnImportOdoo) {
     btnImportOdoo.style.display = getOdooConfig() ? 'block' : 'none';
   }
-  const btnStockOdoo = document.getElementById('btn-stock-odoo');
-  if (btnStockOdoo) {
-    btnStockOdoo.style.display = getOdooConfig() ? 'block' : 'none';
-  }
+
 }
 
 function renderFormats(rec) {
@@ -1410,6 +1407,9 @@ function calcAllIngForRecs(recsList, ftype) {
 
 // ── 9. RENDU RÉSUMÉ ──
 function renderResume() {
+  // Afficher/cacher la carte export stock Odoo
+  const cardStock = document.getElementById('exp-stock-odoo');
+  if (cardStock) cardStock.style.display = getOdooConfig() ? 'flex' : 'none';
   let tp = 0, tk = 0;
   orderedRecettes.forEach(r => { tp += getTotalPains(r); tk += getPoidsRecTotal(r); });
   document.getElementById('big-stats').innerHTML = `<div class="big-stat"><div class="big-stat-val">${tp}</div><div class="big-stat-lbl">Total pains</div></div><div class="big-stat"><div class="big-stat-val">${tk.toFixed(1)}</div><div class="big-stat-lbl">kg pâte crue</div></div>`;
@@ -2670,6 +2670,7 @@ function closeOdooImportModal() {
 }
 
 document.getElementById('btn-import-odoo').addEventListener('click', openOdooImportModal);
+document.getElementById('exp-stock-odoo').addEventListener('click', openStockMPModal);
 document.getElementById('btn-import-odoo-sel').addEventListener('click', openOdooImportModal);
 
 // ── Listeners modale confirmation Odoo avant saisie ──
@@ -4297,7 +4298,7 @@ async function envoyerStockMP() {
   btn.disabled = true;
   status.style.color = '#7a6a5a';
 
-  // Lire les valeurs éditées — MP (en kg) et PF (en unités)
+  // Lire les valeurs éditées
   const inputsMP = [...document.querySelectorAll('#stock-mp-list input[data-type="mp"]')];
   const inputsPF = [...document.querySelectorAll('#stock-mp-list input[data-type="pf"]')];
 
@@ -4320,154 +4321,127 @@ async function envoyerStockMP() {
     return;
   }
 
-  try {
-    // ── 1. Rechercher tous les produits (MP + PF) en une seule requête ──
-    const tousNoms = [
-      ...movesMP.map(m => m.ing),
-      ...movesPF.map(m => m.nom),
-    ];
-    status.textContent = 'Recherche des produits dans Odoo...';
-
-    const searchResp = await fetch(`${cfg.url}/web/dataset/call_kw`, {
+  const rpc = async (id, model, method, args, kwargs={}) => {
+    const r = await fetch(`${cfg.url}/web/dataset/call_kw`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', method: 'call', id: 1,
-        params: {
-          model: 'product.product',
-          method: 'search_read',
-          args: [[['name', 'in', tousNoms]]],
-          kwargs: { fields: ['id', 'name', 'uom_id'], limit: 200 }
-        }
-      })
+      body: JSON.stringify({ jsonrpc:'2.0', method:'call', id,
+        params: { model, method, args, kwargs } })
     });
-    const searchData = await searchResp.json();
+    return r.json();
+  };
+
+  try {
+    // ── 1. Rechercher tous les produits en une requête ──
+    const tousNoms = [...movesMP.map(m => m.ing), ...movesPF.map(m => m.nom)];
+    status.textContent = 'Recherche des produits...';
+    const searchData = await rpc(1, 'product.product', 'search_read',
+      [[['name', 'in', tousNoms]]], { fields: ['id','name','uom_id'], limit: 200 });
     const prodMap = {};
     (searchData.result || []).forEach(p => {
       prodMap[p.name.trim()] = { id: p.id, uom: p.uom_id?.[0] || 1 };
     });
-
-    // Vérifier les non-trouvés
-    const nonTrouvesMP = movesMP.filter(m => !prodMap[m.ing]).map(m => m.ing);
-    const nonTrouvesPF = movesPF.filter(m => !prodMap[m.nom]).map(m => m.nom);
-    const nonTrouves = [...nonTrouvesMP, ...nonTrouvesPF];
+    const nonTrouves = tousNoms.filter(n => !prodMap[n]);
     if (nonTrouves.length) {
       status.textContent = `⚠ Produits non trouvés dans Odoo : ${nonTrouves.join(', ')}`;
       status.style.color = 'var(--red, #c0392b)';
-      btn.disabled = false;
-      return;
+      btn.disabled = false; return;
     }
 
     // ── 2. Récupérer les emplacements ──
     status.textContent = 'Récupération des emplacements...';
-    const locResp = await fetch(`${cfg.url}/web/dataset/call_kw`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', method: 'call', id: 2,
-        params: {
-          model: 'stock.location',
-          method: 'search_read',
-          args: [[['complete_name', 'in', ['WH/Stock', 'Virtual Locations/Production']]]],
-          kwargs: { fields: ['id', 'complete_name'], limit: 10 }
-        }
-      })
-    });
-    const locs = (await locResp.json()).result || [];
+    const locData = await rpc(2, 'stock.location', 'search_read',
+      [[['complete_name', 'in', ['WH/Stock', 'Virtual Locations/Production']]]],
+      { fields: ['id','complete_name'], limit: 10 });
+    const locs = locData.result || [];
     const locStock = locs.find(l => l.complete_name.includes('Stock'))?.id;
     const locProd  = locs.find(l => l.complete_name.includes('Production'))?.id;
-
     if (!locStock || !locProd) {
-      status.textContent = `⚠ Emplacements non trouvés. Contactez votre admin Odoo.`;
+      status.textContent = '⚠ Emplacements non trouvés. Contactez votre admin Odoo.';
       status.style.color = 'var(--red, #c0392b)';
-      btn.disabled = false;
-      return;
+      btn.disabled = false; return;
     }
 
-    // ── 3. Construire tous les mouvements ──
+    // ── 3. Récupérer le picking_type_id "interne" ──
+    // On crée un picking de type "interne" qui regroupe tous les mouvements
+    status.textContent = 'Récupération du type de transfert...';
+    const ptData = await rpc(3, 'stock.picking.type', 'search_read',
+      [[['code', '=', 'internal'], ['warehouse_id.name', '!=', false]]],
+      { fields: ['id','name'], limit: 1 });
+    const pickingTypeId = ptData.result?.[0]?.id;
+    if (!pickingTypeId) {
+      status.textContent = '⚠ Type de transfert interne non trouvé.';
+      status.style.color = 'var(--red, #c0392b)';
+      btn.disabled = false; return;
+    }
+
     const dateStr = new Date().toISOString().slice(0, 10);
-    const moveVals = [
-      // Sorties MP : Stock → Production
-      ...movesMP.map(m => ({
-        name: `Fournée ${dateStr} — ${m.ing}`,
-        product_id: prodMap[m.ing].id,
-        product_uom_qty: m.qty,
-        product_uom: prodMap[m.ing].uom,
+    const moveLinesMP = movesMP.map(m => [0, 0, {
+      name: `Fournée ${dateStr} — ${m.ing}`,
+      product_id: prodMap[m.ing].id,
+      product_uom_qty: m.qty,
+      product_uom: prodMap[m.ing].uom,
+      location_id: locStock,
+      location_dest_id: locProd,
+    }]);
+    const moveLinesPF = movesPF.map(m => [0, 0, {
+      name: `Fournée ${dateStr} — ${m.nom}`,
+      product_id: prodMap[m.nom].id,
+      product_uom_qty: m.unites,
+      product_uom: prodMap[m.nom].uom,
+      location_id: locProd,
+      location_dest_id: locStock,
+    }]);
+
+    // ── 4. Créer deux pickings distincts (MP et PF) ──
+    // Un picking ne peut avoir qu'un seul couple (location_id, location_dest_id)
+    status.textContent = 'Création des transferts...';
+    const pickingIds = [];
+
+    if (movesMP.length) {
+      const pMP = await rpc(4, 'stock.picking', 'create', [{
+        picking_type_id: pickingTypeId,
         location_id: locStock,
         location_dest_id: locProd,
-        state: 'draft',
-      })),
-      // Entrées PF : Production → Stock
-      ...movesPF.map(m => ({
-        name: `Fournée ${dateStr} — ${m.nom}`,
-        product_id: prodMap[m.nom].id,
-        product_uom_qty: m.unites,
-        product_uom: prodMap[m.nom].uom,
-        location_id: locProd,
-        location_dest_id: locStock,
-        state: 'draft',
-      })),
-    ];
-
-    status.textContent = `Création de ${moveVals.length} mouvement(s)...`;
-
-    const createResp = await fetch(`${cfg.url}/web/dataset/call_kw`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', method: 'call', id: 3,
-        params: {
-          model: 'stock.move',
-          method: 'create',
-          args: [moveVals],
-          kwargs: {}
-        }
-      })
-    });
-    const createData = await createResp.json();
-
-    if (createData.error) {
-      status.textContent = `⚠ Erreur Odoo : ${createData.error.data?.message || createData.error.message}`;
-      status.style.color = 'var(--red, #c0392b)';
-      btn.disabled = false;
-      return;
+        origin: `App Fournil — Fournée ${dateStr}`,
+        move_ids: moveLinesMP,
+      }]);
+      if (pMP.error) throw new Error(pMP.error.data?.message || pMP.error.message);
+      pickingIds.push(pMP.result);
     }
 
-    // ── 4. Valider via _action_done() (méthode correcte Odoo) ──
-    status.textContent = 'Validation des mouvements...';
-    const moveIds = createData.result;
-    const doneResp = await fetch(`${cfg.url}/web/dataset/call_kw`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', method: 'call', id: 4,
-        params: {
-          model: 'stock.move',
-          method: '_action_done',
-          args: [moveIds],
-          kwargs: {}
-        }
-      })
-    });
-    const doneData = await doneResp.json();
-    if (doneData.error) {
-      status.textContent = `⚠ Validation échouée : ${doneData.error.data?.message || doneData.error.message}`;
-      status.style.color = 'var(--red, #c0392b)';
-      btn.disabled = false;
-      return;
+    if (movesPF.length) {
+      const pPF = await rpc(5, 'stock.picking', 'create', [{
+        picking_type_id: pickingTypeId,
+        location_id: locProd,
+        location_dest_id: locStock,
+        origin: `App Fournil — Fournée ${dateStr}`,
+        move_ids: moveLinesPF,
+      }]);
+      if (pPF.error) throw new Error(pPF.error.data?.message || pPF.error.message);
+      pickingIds.push(pPF.result);
+    }
+
+    // ── 5. Confirmer et valider chaque picking ──
+    status.textContent = 'Validation des transferts...';
+    for (const pid of pickingIds) {
+      const conf = await rpc(6, 'stock.picking', 'action_confirm', [[pid]]);
+      if (conf.error) throw new Error(conf.error.data?.message || conf.error.message);
+      const val = await rpc(7, 'stock.picking', 'button_validate', [[pid]]);
+      if (val.error) throw new Error(val.error.data?.message || val.error.message);
     }
 
     const nbMP = movesMP.length, nbPF = movesPF.length;
-    status.textContent = `✓ ${nbMP} sortie(s) MP + ${nbPF} entrée(s) PF enregistrées`;
+    status.textContent = `✓ ${nbMP} sortie(s) MP + ${nbPF} entrée(s) PF validées`;
     status.style.color = '#2D6A47';
     setTimeout(() => {
       document.getElementById('stock-mp-modal').style.display = 'none';
-      showToast(`✓ Stock mis à jour (${nbMP} MP + ${nbPF} PF)`);
+      showToast(`✓ Stock mis à jour dans Odoo (${nbMP} MP + ${nbPF} PF)`);
       btn.disabled = false;
     }, 1800);
 
   } catch(err) {
-    status.textContent = `⚠ Erreur réseau : ${err.message}`;
+    status.textContent = `⚠ Erreur : ${err.message}`;
     status.style.color = 'var(--red, #c0392b)';
     btn.disabled = false;
   }
