@@ -4455,8 +4455,7 @@ async function envoyerStockMP() {
   }
 }
 
-// Listeners bouton stock
-document.getElementById('btn-stock-odoo').addEventListener('click', openStockMPModal);
+// Listeners modale stock (cancel + confirm)
 document.getElementById('stock-mp-cancel').addEventListener('click', () => {
   document.getElementById('stock-mp-modal').style.display = 'none';
 });
