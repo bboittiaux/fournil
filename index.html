@@ -4462,6 +4462,16 @@ async function envoyerStockMP() {
 
       const val = await rpc(10, 'stock.picking', 'button_validate', [[pid]]);
       if (val.error) throw new Error(val.error.data?.message || val.error.message);
+
+      // Si button_validate retourne un wizard "Créer un reliquat ?" → répondre "Aucun reliquat"
+      if (val.result && typeof val.result === 'object' && val.result.res_model) {
+        const wizardModel = val.result.res_model;
+        const wizardCtx = val.result.context || {};
+        const wizCreate = await rpc(11, wizardModel, 'create', [{}], { context: wizardCtx });
+        if (wizCreate.result) {
+          await rpc(12, wizardModel, 'process', [[wizCreate.result]]);
+        }
+      }
       }
 
     const nbMP = movesMP.length, nbPF = movesPF.length;
