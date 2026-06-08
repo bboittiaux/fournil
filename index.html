@@ -4185,7 +4185,9 @@ onAuthStateChanged(auth, user => {
 function getMPTotaux() {
   // Calcule les totaux MP réels de la fournée (levains décomposés en MP de base)
   // Retourne { 'Farine de blé T65': 12.500, 'Sel': 0.230, ... }
-  const allIng = calcAllIngForRecs(orderedRecettes.filter(r => selectedRecettes.has(r)));
+  const recsFiltered = orderedRecettes.filter(r => selectedRecettes.has(r));
+  console.log('[getMPTotaux] recettes passées:', recsFiltered);
+  const allIng = calcAllIngForRecs(recsFiltered);
   console.log('[getMPTotaux] allIng:', JSON.stringify(allIng));
   const mpFinaux = {};
   const add = (ing, v) => { mpFinaux[ing] = (mpFinaux[ing] || 0) + v; };
