@@ -4186,15 +4186,29 @@ function getMPTotaux() {
   // Calcule les totaux MP réels de la fournée (levains décomposés en MP de base)
   // Retourne { 'Farine de blé T65': 12.500, 'Sel': 0.230, ... }
   const recsFiltered = orderedRecettes.filter(r => selectedRecettes.has(r));
-  console.log('[getMPTotaux] recettes passées:', recsFiltered);
-  const allIng = calcAllIngForRecs(recsFiltered);
-  console.log('[getMPTotaux] allIng:', JSON.stringify(allIng));
+
+  // Appeler calcAllIngForRecs séparément pour chaque fermentation
+  // (comme buildPeseeBlocs dans renderResume) — sans ftype, la boucle 1
+  // (familles/déclinaisons) ne s'exécute pas et les inclusions sont manquées
+  const recsJ1     = recsFiltered.filter(r => (fermentation[r] || 'j1') === 'j1');
+  const recsDirect = recsFiltered.filter(r => fermentation[r] === 'direct');
+
+  const allIngCombined = {};
+  const addCombined = (ing, v) => { allIngCombined[ing] = (allIngCombined[ing] || 0) + v; };
+
+  [['j1', recsJ1], ['direct', recsDirect]].forEach(([ftype, recs]) => {
+    if (!recs.length) return;
+    const ing = calcAllIngForRecs(recs, ftype);
+    Object.entries(ing).forEach(([k, v]) => addCombined(k, v));
+  });
+
   const mpFinaux = {};
   const add = (ing, v) => { mpFinaux[ing] = (mpFinaux[ing] || 0) + v; };
 
-  Object.entries(allIng).forEach(([ing, qtéIng]) => {
+  Object.entries(allIngCombined).forEach(([ing, qtéIng]) => {
     if (!qtéIng || qtéIng < 0.001) return;
     if (LEVAINS[ing]) {
+      // Décomposer le levain en ses MP de base
       const lev = LEVAINS[ing];
       const s = lev.reduce((x, i) => x + i.ratio, 0);
       lev.forEach(i => add(i.ing, (i.ratio / s) * qtéIng));
