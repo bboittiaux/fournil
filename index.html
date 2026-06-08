@@ -4433,22 +4433,29 @@ async function envoyerStockMP() {
       return;
     }
 
-    // ── 4. Valider (state = done) ──
+    // ── 4. Valider via _action_done() (méthode correcte Odoo) ──
     status.textContent = 'Validation des mouvements...';
     const moveIds = createData.result;
-    await fetch(`${cfg.url}/web/dataset/call_kw`, {
+    const doneResp = await fetch(`${cfg.url}/web/dataset/call_kw`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0', method: 'call', id: 4,
         params: {
           model: 'stock.move',
-          method: 'write',
-          args: [moveIds, { state: 'done' }],
+          method: '_action_done',
+          args: [moveIds],
           kwargs: {}
         }
       })
     });
+    const doneData = await doneResp.json();
+    if (doneData.error) {
+      status.textContent = `⚠ Validation échouée : ${doneData.error.data?.message || doneData.error.message}`;
+      status.style.color = 'var(--red, #c0392b)';
+      btn.disabled = false;
+      return;
+    }
 
     const nbMP = movesMP.length, nbPF = movesPF.length;
     status.textContent = `✓ ${nbMP} sortie(s) MP + ${nbPF} entrée(s) PF enregistrées`;
