@@ -4186,6 +4186,7 @@ function getMPTotaux() {
   // Calcule les totaux MP réels de la fournée (levains décomposés en MP de base)
   // Retourne { 'Farine de blé T65': 12.500, 'Sel': 0.230, ... }
   const allIng = calcAllIngForRecs(orderedRecettes.filter(r => selectedRecettes.has(r)));
+  console.log('[getMPTotaux] allIng:', JSON.stringify(allIng));
   const mpFinaux = {};
   const add = (ing, v) => { mpFinaux[ing] = (mpFinaux[ing] || 0) + v; };
 
@@ -4321,7 +4322,6 @@ async function envoyerStockMP() {
     return;
   }
 
-  console.log('[Stock] Début envoi — MP:', movesMP, 'PF:', movesPF);
 
   const rpc = async (id, model, method, args, kwargs={}) => {
     const r = await fetch(`${cfg.url}/web/dataset/call_kw`, {
@@ -4337,7 +4337,6 @@ async function envoyerStockMP() {
     // ── 1. Rechercher tous les produits en une requête ──
     const tousNoms = [...movesMP.map(m => m.ing), ...movesPF.map(m => m.nom)];
     status.textContent = 'Recherche des produits...';
-    console.log('[Stock] Étape 1 — recherche produits:', tousNoms);
     const searchData = await rpc(1, 'product.product', 'search_read',
       [[['name', 'in', tousNoms]]], { fields: ['id','name','uom_id'], limit: 200 });
     const prodMap = {};
@@ -4353,7 +4352,6 @@ async function envoyerStockMP() {
 
     // ── 2. Récupérer les emplacements ──
     status.textContent = 'Récupération des emplacements...';
-    console.log('[Stock] Étape 2 — emplacements');
     const locData = await rpc(2, 'stock.location', 'search_read',
       [[['complete_name', 'in', ['WH/Stock', 'Virtual Locations/Production']]]],
       { fields: ['id','complete_name'], limit: 10 });
@@ -4369,7 +4367,6 @@ async function envoyerStockMP() {
     // ── 3. Récupérer le picking_type_id "interne" ──
     // On crée un picking de type "interne" qui regroupe tous les mouvements
     status.textContent = 'Récupération du type de transfert...';
-    console.log('[Stock] Étape 3 — picking type. locStock:', locStock, 'locProd:', locProd);
     const ptData = await rpc(3, 'stock.picking.type', 'search_read',
       [[['code', '=', 'internal'], ['warehouse_id.name', '!=', false]]],
       { fields: ['id','name'], limit: 1 });
@@ -4400,7 +4397,6 @@ async function envoyerStockMP() {
 
     // ── 4. Créer deux pickings distincts (MP et PF) ──
     // Un picking ne peut avoir qu'un seul couple (location_id, location_dest_id)
-    console.log('[Stock] Étape 4 — picking type id:', pickingTypeId);
     status.textContent = 'Création des transferts...';
     const pickingIds = [];
 
@@ -4429,14 +4425,28 @@ async function envoyerStockMP() {
     }
 
     // ── 5. Confirmer et valider chaque picking ──
-    console.log('[Stock] Étape 5 — pickings créés:', pickingIds);
     status.textContent = 'Validation des transferts...';
     for (const pid of pickingIds) {
       const conf = await rpc(6, 'stock.picking', 'action_confirm', [[pid]]);
       if (conf.error) throw new Error(conf.error.data?.message || conf.error.message);
-      const val = await rpc(7, 'stock.picking', 'button_validate', [[pid]]);
+
+      // Lire les move_ids du picking
+      const pickRead = await rpc(7, 'stock.picking', 'read', [[pid]], { fields: ['move_ids'] });
+      const moveIds = pickRead.result?.[0]?.move_ids || [];
+
+      // Pour chaque move, forcer qty_done sur les move lines (évite le wizard Odoo)
+      if (moveIds.length) {
+        const mvData = await rpc(8, 'stock.move', 'read', [moveIds], { fields: ['move_line_ids', 'product_uom_qty', 'product_uom'] });
+        for (const mv of (mvData.result || [])) {
+          if (mv.move_line_ids.length) {
+            await rpc(9, 'stock.move.line', 'write', [mv.move_line_ids, { qty_done: mv.product_uom_qty }]);
+          }
+        }
+      }
+
+      const val = await rpc(10, 'stock.picking', 'button_validate', [[pid]]);
       if (val.error) throw new Error(val.error.data?.message || val.error.message);
-    }
+      }
 
     const nbMP = movesMP.length, nbPF = movesPF.length;
     status.textContent = `✓ ${nbMP} sortie(s) MP + ${nbPF} entrée(s) PF validées`;
@@ -4448,7 +4458,6 @@ async function envoyerStockMP() {
     }, 1800);
 
   } catch(err) {
-    console.error('[Stock] Erreur catch:', err);
     status.textContent = `⚠ Erreur : ${err.message}`;
     status.style.color = 'var(--red, #c0392b)';
     btn.disabled = false;
