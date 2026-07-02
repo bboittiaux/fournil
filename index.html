@@ -467,6 +467,7 @@ html, body {
       <button class="btn-secondary" id="btn-prev">←</button>
       <button class="btn-secondary" id="btn-go-sel">Sélection</button>
       <button id="btn-import-odoo" style="display:none;padding:0 12px;height:44px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">📦 Odoo</button>
+      <button id="btn-canaux-session" style="padding:0 12px;height:44px;background:var(--paper2);color:var(--dark);border:1px solid var(--tan);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">Canaux ⚙</button>
       <button class="btn-primary" id="btn-next">Suivant →</button>
       <button class="btn-reset" id="btn-raz">RAZ</button>
     </div>
@@ -482,6 +483,7 @@ html, body {
       <div class="section-lbl">Levains à préparer</div>
       <div id="recap-levains"></div>
       <div class="section-lbl">Exporter les documents</div>
+      <div class="export-card" id="exp-canaux-config" style="border-color:var(--tan-dark)"><div><div class="export-title" style="color:var(--dark)">Canaux de vente</div><div class="export-sub" id="canaux-config-badge">Boutique · Marché · Commandes · Autres</div></div><div class="export-arrow" style="color:var(--tan-dark);font-size:18px">⚙</div></div>
       <div class="export-card" id="exp-odoo-config" style="border-color:var(--tan-dark)"><div><div class="export-title" style="color:var(--dark)">Connexion Odoo</div><div class="export-sub" id="odoo-config-badge">Non configuré</div></div><div class="export-arrow" style="color:var(--tan-dark);font-size:18px">⚙</div></div>
       <div class="export-card" id="exp-pdf"><div><div class="export-title">Résumé PDF</div><div class="export-sub">Imprimable — toutes les pesées</div></div><div class="export-arrow">↓</div></div>
       <div class="export-card" id="exp-xlsx"><div><div class="export-title">Tableur Excel (.xlsx)</div><div class="export-sub">4 onglets : résumé, pesées, levains, bacs</div></div><div class="export-arrow">↓</div></div>
@@ -534,6 +536,29 @@ html, body {
        Logique : 1 recette par bac strictement.
        Auto-répartition au premier accès, ajustable ensuite.
        ══════════════════════════════════════════════════════ -->
+  <!-- ═══════════════════════════════════════════════════════
+       ÉCRAN CONFIGURATION DES CANAUX DE VENTE
+       ═══════════════════════════════════════════════════════ -->
+  <div class="screen" id="screen-canaux-config">
+    <div class="scroll-area">
+      <div class="screen-title">Canaux de vente</div>
+      <div class="screen-subtitle">Config globale — s'applique à toutes les fournées</div>
+      <div id="canaux-config-list" style="margin:16px 10px"></div>
+      <div style="margin:0 10px 16px">
+        <button id="btn-add-canal-global" style="display:flex;align-items:center;gap:8px;width:100%;padding:12px 16px;border:1.5px dashed var(--tan);border-radius:10px;background:transparent;font-size:13px;color:var(--dark);cursor:pointer;font-family:inherit;font-weight:600">
+          <span style="font-size:18px">+</span> Ajouter un canal
+        </button>
+      </div>
+      <div style="margin:0 10px 16px;padding:12px;background:var(--paper);border-radius:10px;border:1px solid var(--tan);font-size:11.5px;color:var(--tan-dark);line-height:1.6">
+        📦 Le canal marqué <b>Odoo</b> reçoit les commandes importées depuis Odoo. Un seul canal à la fois.
+      </div>
+    </div>
+    <div class="bottom-bar">
+      <button class="btn-secondary" id="btn-canaux-config-back">← Résumé</button>
+      <button class="btn-primary" id="btn-save-canaux-global">Enregistrer</button>
+    </div>
+  </div>
+
   <div class="screen" id="screen-odoo-config">
     <div class="scroll-area">
       <div class="screen-title">Connexion Odoo</div>
@@ -669,7 +694,36 @@ function fbListen(path, cb) {
 }
 
 // ── 2. DONNÉES PAR DÉFAUT ──
-const CANAUX = ['Boutique', 'Marché', 'Commandes', 'Autres'];
+const DEFAULT_CANAUX_CONFIG = [
+  { nom: 'Boutique', odoo: false },
+  { nom: 'Marché',   odoo: false },
+  { nom: 'Commandes', odoo: true  },
+  { nom: 'Autres',   odoo: false },
+];
+let CANAUX_CONFIG = loadGlobalCanaux();  // [{nom, odoo}, ...]
+let CANAUX        = CANAUX_CONFIG.map(c => c.nom);  // ['Boutique', ...]
+
+function loadGlobalCanaux() {
+  try {
+    const stored = localStorage.getItem('fournil_canaux');
+    if (stored) {
+      const arr = JSON.parse(stored);
+      if (Array.isArray(arr) && arr.length) return arr;
+    }
+  } catch(e) {}
+  return DEFAULT_CANAUX_CONFIG.map(c => ({ ...c }));
+}
+function saveGlobalCanaux() {
+  localStorage.setItem('fournil_canaux', JSON.stringify(CANAUX_CONFIG));
+}
+function applyCanaux(config) {
+  CANAUX_CONFIG = config;
+  CANAUX = config.map(c => c.nom);
+}
+// Canal désigné pour l'import Odoo (flag odoo:true, sinon fallback CANAUX[2])
+function getCanalOdoo() {
+  return (CANAUX_CONFIG.find(c => c.odoo) || CANAUX_CONFIG[2] || CANAUX_CONFIG[0])?.nom || CANAUX[0];
+}
 const PERTE_CUISSON_DEFAUT = 0.11;
 
 const DEFAULT_LEVAINS = {
@@ -800,6 +854,26 @@ function initQty() {
   });
 }
 
+// ── Helpers migration qty lors des changements de canaux ──
+function addCanalToQty(nom) {
+  Object.keys(qty).forEach(rec =>
+    Object.keys(qty[rec] || {}).forEach(fmt => { qty[rec][fmt][nom] = 0; })
+  );
+}
+function renameCanalInQty(oldNom, newNom) {
+  Object.keys(qty).forEach(rec =>
+    Object.keys(qty[rec] || {}).forEach(fmt => {
+      qty[rec][fmt][newNom] = qty[rec][fmt][oldNom] || 0;
+      delete qty[rec][fmt][oldNom];
+    })
+  );
+}
+function deleteCanalFromQty(nom) {
+  Object.keys(qty).forEach(rec =>
+    Object.keys(qty[rec] || {}).forEach(fmt => { delete qty[rec][fmt][nom]; })
+  );
+}
+
 function mergeQty(data) {
   Object.keys(data || {}).forEach(rec => {
     if (!qty[rec]) return;
@@ -834,6 +908,7 @@ function saveSessionQty() {
     });
   });
   fbSet('session/qty', safeQty).catch(() => {});
+  fbSet('session/canaux', CANAUX_CONFIG).catch(() => {});
   fbSet('session/fermentation', fermentation).catch(() => {});
   fbSet('session/levainOverride', levainRatioOverride).catch(() => {});
 }
@@ -860,6 +935,11 @@ async function init() {
       if (saved.recettes) RECETTES = saved.recettes;
       if (saved.formats) FORMATS = saved.formats;
       if (saved.levains) LEVAINS = saved.levains;
+    }
+    // Charger canaux session (override par fournée) ou config globale
+    const lastCanaux = await fbGet('session/canaux');
+    if (lastCanaux && Array.isArray(lastCanaux) && lastCanaux.length) {
+      applyCanaux(lastCanaux);
     }
     initQty();
     const lastQty = await fbGet('session/qty');
@@ -2626,6 +2706,27 @@ document.getElementById('btn-calc-pdf').addEventListener('click', () => {
   document.querySelectorAll('.calc-card').forEach(card => { const name = card.querySelector('.calc-name').textContent; const total = card.querySelector('.calc-total-input').value; h += `<h2>${name} — ${total} kg</h2><table>`; card.querySelectorAll('.calc-ing-row').forEach(row => { h += `<tr><td>${row.querySelector('.calc-ing-name').textContent}</td><td>${row.querySelector('.calc-ing-qty').textContent}</td></tr>`; }); h += `</table>`; });
   h += `
   <!-- ═══════════════════════════════════════════════════════
+       MODALE CANAUX DE VENTE (override par fournée)
+       ═══════════════════════════════════════════════════════ -->
+  <div id="canaux-session-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.6);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:16px;padding:20px;width:92%;max-width:440px;max-height:85vh;overflow-y:auto;font-family:inherit">
+      <div style="font-weight:700;font-size:15px;color:#36281A;margin-bottom:4px">Canaux de vente ⚙</div>
+      <div style="font-size:12px;color:#7a6a5a;margin-bottom:14px">Override pour cette fournée uniquement</div>
+      <div id="canaux-session-list" style="margin-bottom:12px"></div>
+      <button id="btn-add-canal-session" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1.5px dashed var(--tan,#C9B8A8);border-radius:10px;background:transparent;font-size:12px;color:#36281A;cursor:pointer;font-family:inherit;font-weight:600;margin-bottom:14px">
+        <span style="font-size:16px">+</span> Ajouter un canal
+      </button>
+      <div style="font-size:11px;color:#7a6a5a;margin-bottom:14px;padding:10px;background:#F0EDE0;border-radius:8px">
+        📦 Le canal Odoo reçoit les commandes importées. Un seul à la fois.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="canaux-session-cancel" style="padding:10px 18px;border:1px solid #ccc;border-radius:10px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+        <button id="canaux-session-confirm" style="padding:10px 18px;border:none;border-radius:10px;background:#36281A;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Appliquer à cette fournée</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
        MODALE STOCK MP → ODOO
        ═══════════════════════════════════════════════════════ -->
   <div id="stock-mp-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.6);z-index:1000;align-items:center;justify-content:center">
@@ -3320,6 +3421,27 @@ function printFicheBac(recNom, idx) {
   <footer>Le Fournil des Enfariné.e.s · Fournée du ${date}</footer>
   
   <!-- ═══════════════════════════════════════════════════════
+       MODALE CANAUX DE VENTE (override par fournée)
+       ═══════════════════════════════════════════════════════ -->
+  <div id="canaux-session-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.6);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:16px;padding:20px;width:92%;max-width:440px;max-height:85vh;overflow-y:auto;font-family:inherit">
+      <div style="font-weight:700;font-size:15px;color:#36281A;margin-bottom:4px">Canaux de vente ⚙</div>
+      <div style="font-size:12px;color:#7a6a5a;margin-bottom:14px">Override pour cette fournée uniquement</div>
+      <div id="canaux-session-list" style="margin-bottom:12px"></div>
+      <button id="btn-add-canal-session" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1.5px dashed var(--tan,#C9B8A8);border-radius:10px;background:transparent;font-size:12px;color:#36281A;cursor:pointer;font-family:inherit;font-weight:600;margin-bottom:14px">
+        <span style="font-size:16px">+</span> Ajouter un canal
+      </button>
+      <div style="font-size:11px;color:#7a6a5a;margin-bottom:14px;padding:10px;background:#F0EDE0;border-radius:8px">
+        📦 Le canal Odoo reçoit les commandes importées. Un seul à la fois.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="canaux-session-cancel" style="padding:10px 18px;border:1px solid #ccc;border-radius:10px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+        <button id="canaux-session-confirm" style="padding:10px 18px;border:none;border-radius:10px;background:#36281A;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Appliquer à cette fournée</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
        MODALE STOCK MP → ODOO
        ═══════════════════════════════════════════════════════ -->
   <div id="stock-mp-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.6);z-index:1000;align-items:center;justify-content:center">
@@ -3551,6 +3673,27 @@ function printAllFiches() {
 
   h += `
   <!-- ═══════════════════════════════════════════════════════
+       MODALE CANAUX DE VENTE (override par fournée)
+       ═══════════════════════════════════════════════════════ -->
+  <div id="canaux-session-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.6);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:16px;padding:20px;width:92%;max-width:440px;max-height:85vh;overflow-y:auto;font-family:inherit">
+      <div style="font-weight:700;font-size:15px;color:#36281A;margin-bottom:4px">Canaux de vente ⚙</div>
+      <div style="font-size:12px;color:#7a6a5a;margin-bottom:14px">Override pour cette fournée uniquement</div>
+      <div id="canaux-session-list" style="margin-bottom:12px"></div>
+      <button id="btn-add-canal-session" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1.5px dashed var(--tan,#C9B8A8);border-radius:10px;background:transparent;font-size:12px;color:#36281A;cursor:pointer;font-family:inherit;font-weight:600;margin-bottom:14px">
+        <span style="font-size:16px">+</span> Ajouter un canal
+      </button>
+      <div style="font-size:11px;color:#7a6a5a;margin-bottom:14px;padding:10px;background:#F0EDE0;border-radius:8px">
+        📦 Le canal Odoo reçoit les commandes importées. Un seul à la fois.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="canaux-session-cancel" style="padding:10px 18px;border:1px solid #ccc;border-radius:10px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+        <button id="canaux-session-confirm" style="padding:10px 18px;border:none;border-radius:10px;background:#36281A;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Appliquer à cette fournée</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
        MODALE STOCK MP → ODOO
        ═══════════════════════════════════════════════════════ -->
   <div id="stock-mp-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.6);z-index:1000;align-items:center;justify-content:center">
@@ -3744,6 +3887,27 @@ function printFicheJournee() {
   if (!hasBacs) h += `<p style="color:#AE7D66;font-style:italic">Aucun bac défini.</p>`;
 
   h += `
+  <!-- ═══════════════════════════════════════════════════════
+       MODALE CANAUX DE VENTE (override par fournée)
+       ═══════════════════════════════════════════════════════ -->
+  <div id="canaux-session-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.6);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:16px;padding:20px;width:92%;max-width:440px;max-height:85vh;overflow-y:auto;font-family:inherit">
+      <div style="font-weight:700;font-size:15px;color:#36281A;margin-bottom:4px">Canaux de vente ⚙</div>
+      <div style="font-size:12px;color:#7a6a5a;margin-bottom:14px">Override pour cette fournée uniquement</div>
+      <div id="canaux-session-list" style="margin-bottom:12px"></div>
+      <button id="btn-add-canal-session" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1.5px dashed var(--tan,#C9B8A8);border-radius:10px;background:transparent;font-size:12px;color:#36281A;cursor:pointer;font-family:inherit;font-weight:600;margin-bottom:14px">
+        <span style="font-size:16px">+</span> Ajouter un canal
+      </button>
+      <div style="font-size:11px;color:#7a6a5a;margin-bottom:14px;padding:10px;background:#F0EDE0;border-radius:8px">
+        📦 Le canal Odoo reçoit les commandes importées. Un seul à la fois.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="canaux-session-cancel" style="padding:10px 18px;border:1px solid #ccc;border-radius:10px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+        <button id="canaux-session-confirm" style="padding:10px 18px;border:none;border-radius:10px;background:#36281A;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Appliquer à cette fournée</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══════════════════════════════════════════════════════
        MODALE STOCK MP → ODOO
        ═══════════════════════════════════════════════════════ -->
@@ -3978,7 +4142,7 @@ async function importCommandesOdoo(dateStr) {
 function appliquerCommandesOdoo(lignes, depuisSelection = false) {
   let nbImportees = 0;
   let nbSelectionnes = 0;
-  const canalCommandes = CANAUX.find(c => c.toLowerCase().includes('comm')) || CANAUX[2];
+  const canalCommandes = getCanalOdoo();
 
   // Chercher dans TOUTES les recettes Firebase (pas seulement orderedRecettes)
   const toutesRecs = Object.keys(RECETTES);
@@ -4496,6 +4660,173 @@ document.getElementById('stock-mp-cancel').addEventListener('click', () => {
 });
 document.getElementById('stock-mp-confirm').addEventListener('click', envoyerStockMP);
 
+
+
+// ═══════════════════════════════════════════════════════════
+// GESTION DES CANAUX DE VENTE
+// ═══════════════════════════════════════════════════════════
+
+/** Rendu d'une liste de canaux éditable dans un conteneur.
+ *  @param {Array} config   [{nom, odoo}, ...]
+ *  @param {HTMLElement} container  div où injecter
+ *  @param {Function} onChange  appelé(newConfig) à chaque modif
+ */
+function renderCanauxEditor(config, container, onChange) {
+  function rebuild() {
+    container.innerHTML = '';
+    config.forEach((canal, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
+
+      // Input nom
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.value = canal.nom;
+      inp.placeholder = 'Nom du canal';
+      inp.style.cssText = 'flex:1;padding:9px 12px;border:1.5px solid #C9B8A8;border-radius:8px;font-size:13px;font-family:inherit';
+      inp.addEventListener('input', () => {
+        const oldNom = config[idx].nom;
+        config[idx].nom = inp.value.trim() || oldNom;
+        onChange(config, { type: 'rename', oldNom, newNom: config[idx].nom });
+      });
+
+      // Badge Odoo
+      const odooBtn = document.createElement('button');
+      odooBtn.title = canal.odoo ? 'Canal Odoo actif (cliquer pour désactiver)' : 'Définir comme canal Odoo';
+      odooBtn.style.cssText = `padding:6px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid ${canal.odoo ? '#2D6A47' : '#C9B8A8'};background:${canal.odoo ? '#e8f5ee' : 'transparent'};color:${canal.odoo ? '#2D6A47' : '#7a6a5a'};white-space:nowrap;flex-shrink:0`;
+      odooBtn.textContent = '📦 Odoo';
+      odooBtn.addEventListener('click', () => {
+        config.forEach((c, i) => { c.odoo = (i === idx) ? !canal.odoo : false; });
+        onChange(config, { type: 'odoo' });
+        rebuild();
+      });
+
+      // Bouton supprimer
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.title = 'Supprimer ce canal';
+      delBtn.style.cssText = 'width:34px;height:34px;border:1px solid #C9B8A8;border-radius:8px;background:transparent;color:#7a6a5a;font-size:14px;cursor:pointer;font-family:inherit;flex-shrink:0';
+      delBtn.addEventListener('click', () => {
+        if (config.length <= 1) { showToast('Il faut au moins un canal'); return; }
+        if (!confirm(`Supprimer le canal "${canal.nom}" ? Les quantités saisies pour ce canal seront perdues.`)) return;
+        const nomSup = config[idx].nom;
+        config.splice(idx, 1);
+        onChange(config, { type: 'delete', nom: nomSup });
+        rebuild();
+      });
+
+      row.appendChild(inp); row.appendChild(odooBtn); row.appendChild(delBtn);
+      container.appendChild(row);
+    });
+  }
+  rebuild();
+}
+
+/** Met à jour le badge canaux sur l'écran résumé */
+function updateCanauxBadge() {
+  const badge = document.getElementById('canaux-config-badge');
+  if (badge) badge.textContent = CANAUX_CONFIG.map(c => c.odoo ? c.nom + ' 📦' : c.nom).join(' · ');
+}
+
+// ── Écran config globale ──
+function openCanauxConfigScreen() {
+  // Copie profonde pour édition non-destructive
+  let editConfig = CANAUX_CONFIG.map(c => ({ ...c }));
+  const container = document.getElementById('canaux-config-list');
+
+  renderCanauxEditor(editConfig, container, (newConfig, action) => {
+    if (action.type === 'rename') {
+      // Pas de migration qty ici (config globale, session pas encore démarrée)
+    }
+  });
+
+  document.getElementById('btn-add-canal-global').onclick = () => {
+    editConfig.push({ nom: 'Nouveau canal', odoo: false });
+    renderCanauxEditor(editConfig, container, (nc, a) => { editConfig = nc; });
+    renderCanauxEditor(editConfig, container, (nc, a) => { editConfig = nc; });
+  };
+
+  document.getElementById('btn-save-canaux-global').onclick = () => {
+    const noms = editConfig.map(c => c.nom.trim()).filter(Boolean);
+    if (new Set(noms).size !== noms.length) { showToast('Deux canaux ont le même nom'); return; }
+    applyCanaux(editConfig);
+    saveGlobalCanaux();
+    updateCanauxBadge();
+    showToast('Canaux enregistrés');
+    showScreen('screen-resume');
+  };
+
+  showScreen('screen-canaux-config');
+}
+
+// Réinitialiser le btn-add au réaffichage
+document.getElementById('btn-add-canal-global').addEventListener('click', () => {});
+
+// ── Modale override par fournée ──
+function openCanauxSessionModal() {
+  let editConfig = CANAUX_CONFIG.map(c => ({ ...c }));
+  const container = document.getElementById('canaux-session-list');
+
+  renderCanauxEditor(editConfig, container, (newConfig, action) => {
+    editConfig = newConfig;
+  });
+
+  document.getElementById('btn-add-canal-session').onclick = () => {
+    editConfig.push({ nom: 'Nouveau canal', odoo: false });
+    renderCanauxEditor(editConfig, container, (nc) => { editConfig = nc; });
+  };
+
+  document.getElementById('canaux-session-modal').style.display = 'flex';
+
+  document.getElementById('canaux-session-confirm').onclick = () => {
+    const noms = editConfig.map(c => c.nom.trim()).filter(Boolean);
+    if (new Set(noms).size !== noms.length) { showToast('Deux canaux ont le même nom'); return; }
+
+    // Calculer diff avec CANAUX actuels
+    const oldNoms = new Set(CANAUX);
+    const newNoms = new Set(noms);
+
+    // Renames : si même nb et positions modifiées → on migre dans l'ordre
+    CANAUX.forEach((oldNom, i) => {
+      const newNom = editConfig[i]?.nom;
+      if (newNom && newNom !== oldNom) {
+        renameCanalInQty(oldNom, newNom);
+      }
+    });
+
+    // Ajouts
+    noms.forEach(nom => {
+      if (!oldNoms.has(nom)) addCanalToQty(nom);
+    });
+
+    // Suppressions
+    CANAUX.forEach(nom => {
+      if (!newNoms.has(nom)) deleteCanalFromQty(nom);
+    });
+
+    applyCanaux(editConfig);
+    saveSessionQty();
+    updateCanauxBadge();
+    document.getElementById('canaux-session-modal').style.display = 'none';
+    showToast(`Canaux mis à jour : ${CANAUX.join(', ')}`);
+
+    // Ré-afficher la saisie avec les nouveaux canaux
+    const rec = orderedRecettes[currentStep];
+    if (rec) { renderFormats(rec); updateLiveTotals(rec); }
+  };
+}
+
+// Listeners
+document.getElementById('canaux-session-cancel').addEventListener('click', () => {
+  document.getElementById('canaux-session-modal').style.display = 'none';
+});
+document.getElementById('btn-canaux-session').addEventListener('click', openCanauxSessionModal);
+document.getElementById('exp-canaux-config').addEventListener('click', openCanauxConfigScreen);
+document.getElementById('btn-canaux-config-back').addEventListener('click', () => showScreen('screen-resume'));
+
+// Badge initial
+updateCanauxBadge();
+
 </script>
   <!-- Modale confirmation import Odoo avant saisie -->
   <div id="odoo-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.5);z-index:1000;align-items:center;justify-content:center">
@@ -4521,6 +4852,27 @@ document.getElementById('stock-mp-confirm').addEventListener('click', envoyerSto
     </div>
   </div>
 
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODALE CANAUX DE VENTE (override par fournée)
+       ═══════════════════════════════════════════════════════ -->
+  <div id="canaux-session-modal" style="display:none;position:fixed;inset:0;background:rgba(54,40,26,0.6);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:16px;padding:20px;width:92%;max-width:440px;max-height:85vh;overflow-y:auto;font-family:inherit">
+      <div style="font-weight:700;font-size:15px;color:#36281A;margin-bottom:4px">Canaux de vente ⚙</div>
+      <div style="font-size:12px;color:#7a6a5a;margin-bottom:14px">Override pour cette fournée uniquement</div>
+      <div id="canaux-session-list" style="margin-bottom:12px"></div>
+      <button id="btn-add-canal-session" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1.5px dashed var(--tan,#C9B8A8);border-radius:10px;background:transparent;font-size:12px;color:#36281A;cursor:pointer;font-family:inherit;font-weight:600;margin-bottom:14px">
+        <span style="font-size:16px">+</span> Ajouter un canal
+      </button>
+      <div style="font-size:11px;color:#7a6a5a;margin-bottom:14px;padding:10px;background:#F0EDE0;border-radius:8px">
+        📦 Le canal Odoo reçoit les commandes importées. Un seul à la fois.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="canaux-session-cancel" style="padding:10px 18px;border:1px solid #ccc;border-radius:10px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+        <button id="canaux-session-confirm" style="padding:10px 18px;border:none;border-radius:10px;background:#36281A;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Appliquer à cette fournée</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ═══════════════════════════════════════════════════════
        MODALE STOCK MP → ODOO
