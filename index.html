@@ -446,6 +446,7 @@ html, body {
     <div class="bottom-bar">
       <button class="btn-reset" id="btn-reset-sel">Tout décocher</button>
       <button id="btn-import-odoo-sel" style="display:none;padding:0 12px;height:44px;background:var(--dark);color:var(--paper);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;position:relative;z-index:10">📦 Odoo</button>
+      <button id="btn-canaux-config-sel" style="padding:0 12px;height:44px;background:var(--paper2);color:var(--dark);border:1px solid var(--tan);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">Canaux ⚙</button>
       <button class="btn-primary" id="btn-start" disabled>Commencer →</button>
     </div>
   </div>
@@ -1072,6 +1073,12 @@ function updateProgress() {
 
 // ── 7. RENDU SAISIE (Event Delegation) ──
 function doStartSaisie() {
+  // Réinitialiser les canaux depuis la config globale (localStorage)
+  // pour que chaque nouvelle fournée reparte proprement
+  applyCanaux(loadGlobalCanaux());
+  fbSet('session/canaux', null).catch(() => {});  // effacer l'override de session
+  updateCanauxBadge();
+
   orderedRecettes = [];
   getParentesAvecDecli().forEach(parent => { getFamille(parent).filter(r => selectedRecettes.has(r)).forEach(r => orderedRecettes.push(r)); });
   getAutresSimples().filter(r => selectedRecettes.has(r)).forEach(r => orderedRecettes.push(r));
@@ -4729,34 +4736,35 @@ function updateCanauxBadge() {
 }
 
 // ── Écran config globale ──
+let _currentCanauxEdit = null;  // ref partagée pour accès depuis les deux points d'entrée
+
 function openCanauxConfigScreen() {
   // Copie profonde pour édition non-destructive
-  let editConfig = CANAUX_CONFIG.map(c => ({ ...c }));
+  _currentCanauxEdit = CANAUX_CONFIG.map(c => ({ ...c }));
   const container = document.getElementById('canaux-config-list');
 
-  renderCanauxEditor(editConfig, container, (newConfig, action) => {
-    if (action.type === 'rename') {
-      // Pas de migration qty ici (config globale, session pas encore démarrée)
-    }
+  renderCanauxEditor(_currentCanauxEdit, container, (newConfig) => {
+    _currentCanauxEdit = newConfig;
   });
 
   document.getElementById('btn-add-canal-global').onclick = () => {
-    editConfig.push({ nom: 'Nouveau canal', odoo: false });
-    renderCanauxEditor(editConfig, container, (nc, a) => { editConfig = nc; });
-    renderCanauxEditor(editConfig, container, (nc, a) => { editConfig = nc; });
+    _currentCanauxEdit.push({ nom: 'Nouveau canal', odoo: false });
+    renderCanauxEditor(_currentCanauxEdit, container, (nc) => { _currentCanauxEdit = nc; });
   };
 
+  // Comportement par défaut : retour au résumé (peut être surchargé par l'appelant)
   document.getElementById('btn-save-canaux-global').onclick = () => {
-    const noms = editConfig.map(c => c.nom.trim()).filter(Boolean);
+    const noms = _currentCanauxEdit.map(c => c.nom.trim()).filter(Boolean);
     if (new Set(noms).size !== noms.length) { showToast('Deux canaux ont le même nom'); return; }
-    applyCanaux(editConfig);
+    applyCanaux(_currentCanauxEdit);
     saveGlobalCanaux();
     updateCanauxBadge();
     showToast('Canaux enregistrés');
-    showScreen('screen-resume');
+    goTo('screen-resume');
   };
+  document.getElementById('btn-canaux-config-back').onclick = () => goTo('screen-resume');
 
-  showScreen('screen-canaux-config');
+  goTo('screen-canaux-config');
 }
 
 // Réinitialiser le btn-add au réaffichage
@@ -4822,7 +4830,23 @@ document.getElementById('canaux-session-cancel').addEventListener('click', () =>
 });
 document.getElementById('btn-canaux-session').addEventListener('click', openCanauxSessionModal);
 document.getElementById('exp-canaux-config').addEventListener('click', openCanauxConfigScreen);
-document.getElementById('btn-canaux-config-back').addEventListener('click', () => showScreen('screen-resume'));
+document.getElementById('btn-canaux-config-sel').addEventListener('click', () => {
+  // Depuis la sélection, on revient à la sélection après save
+  document.getElementById('btn-save-canaux-global').onclick = () => {
+    const editConfig = _currentCanauxEdit;
+    if (!editConfig) return;
+    const noms = editConfig.map(c => c.nom.trim()).filter(Boolean);
+    if (new Set(noms).size !== noms.length) { showToast('Deux canaux ont le même nom'); return; }
+    applyCanaux(editConfig);
+    saveGlobalCanaux();
+    updateCanauxBadge();
+    showToast('Canaux enregistrés');
+    goTo('screen-selection');
+  };
+  document.getElementById('btn-canaux-config-back').onclick = () => goTo('screen-selection');
+  openCanauxConfigScreen();
+});
+document.getElementById('btn-canaux-config-back').addEventListener('click', () => goTo('screen-resume'));
 
 // Badge initial
 updateCanauxBadge();
