@@ -2013,15 +2013,84 @@ function buildRecCard(rec) {
 function renderCalcLevain() {
   const list = document.getElementById('calc-levain-list'); list.innerHTML = '';
   Object.keys(LEVAINS).forEach(levName => {
-    const lev = LEVAINS[levName]; const sumR = lev.reduce((s, i) => s + i.ratio, 0);
+    const lev = LEVAINS[levName];
+
+    // Identifier Souche et calculer les sommes de base
+    const souche = lev.find(i => i.ing === 'Souche');
+    const farineSum = lev.filter(i => i.ing !== 'Eau' && i.ing !== 'Souche').reduce((s, i) => s + i.ratio, 0);
+    const eauSum   = lev.filter(i => i.ing === 'Eau').reduce((s, i) => s + i.ratio, 0);
+    const defaultSoucheKgKg = souche && farineSum > 0 ? +(souche.ratio / farineSum).toFixed(4) : null;
+
+    // HTML de la carte
+    const soucheRow = defaultSoucheKgKg !== null ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--paper);border-top:1px solid var(--paper2)">
+        <span style="font-size:12px;font-weight:600;color:var(--tan-dark)">Souche <span style="font-weight:400">(kg/kg farine)</span></span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input class="calc-souche-input" type="number" step="0.01" min="0" value="${defaultSoucheKgKg}"
+            inputmode="decimal"
+            style="width:70px;padding:6px 8px;border:1.5px solid var(--tan);border-radius:6px;font-size:13px;font-weight:700;color:var(--red);text-align:right;font-family:inherit;background:var(--white)">
+          <span style="font-size:11px;color:var(--tan-dark);font-weight:600">kg/kg</span>
+        </div>
+      </div>` : '';
+
     const sec = document.createElement('div');
-    sec.innerHTML = `<div class="calc-card"><div class="calc-header"><div class="calc-name">${levName}</div><div class="calc-total-wrap"><input class="calc-total-input" type="number" step="0.1" min="0" value="1.0" inputmode="decimal"><span style="font-size:11px;color:var(--tan-dark);font-weight:600">kg</span></div></div><div class="calc-rows"></div></div>`;
+    sec.style.marginBottom = '12px';
+    sec.innerHTML = `<div class="calc-card">
+      <div class="calc-header">
+        <div class="calc-name">${levName}</div>
+        <div class="calc-total-wrap">
+          <input class="calc-total-input" type="number" step="0.1" min="0" value="1.0" inputmode="decimal">
+          <span style="font-size:11px;color:var(--tan-dark);font-weight:600">kg</span>
+        </div>
+      </div>
+      ${soucheRow}
+      <div class="calc-rows"></div>
+    </div>`;
     list.appendChild(sec);
-    const rowsDiv = sec.querySelector('.calc-rows');
-    const inp = sec.querySelector('.calc-total-input');
-    const updateRows = (total) => { rowsDiv.innerHTML = ''; lev.forEach(item => { const q = (item.ratio / sumR) * total; rowsDiv.innerHTML += `<div class="calc-ing-row"><div><span class="calc-ing-name">${item.ing}</span><span class="calc-ing-ratio">ratio ${item.ratio}</span></div><div class="calc-ing-qty">${q.toFixed(3)} kg</div></div>`; }); };
-    updateRows(1.0);
-    inp.addEventListener('input', () => updateRows(parseFloat(inp.value) || 0));
+
+    const rowsDiv   = sec.querySelector('.calc-rows');
+    const inpTotal  = sec.querySelector('.calc-total-input');
+    const inpSouche = sec.querySelector('.calc-souche-input');
+
+    const updateRows = () => {
+      const total      = parseFloat(inpTotal.value) || 0;
+      const soucheKgKg = inpSouche ? (parseFloat(inpSouche.value) || 0) : null;
+
+      rowsDiv.innerHTML = '';
+      lev.forEach(item => {
+        let q;
+        if (item.ing === 'Souche' && soucheKgKg !== null && farineSum > 0) {
+          // Souche = soucheKgKg × farine_qty
+          // farine_qty = (farineSum / totalParts) × total
+          // totalParts = farineSum + eauSum + soucheKgKg × farineSum
+          const soucheRatio = soucheKgKg * farineSum;
+          const totalParts  = farineSum + eauSum + soucheRatio;
+          const farineQty   = totalParts > 0 ? (farineSum / totalParts) * total : 0;
+          q = farineQty * soucheKgKg;
+        } else if (item.ing === 'Souche' && soucheKgKg !== null) {
+          q = 0;
+        } else {
+          // Autres ingrédients : on recalcule avec le nouveau totalParts
+          const soucheR    = soucheKgKg !== null ? soucheKgKg * farineSum : (souche?.ratio || 0);
+          const totalParts = farineSum + eauSum + soucheR;
+          q = totalParts > 0 ? (item.ratio / totalParts) * total : 0;
+        }
+        const isModified = item.ing === 'Souche' && soucheKgKg !== null && soucheKgKg !== defaultSoucheKgKg;
+        rowsDiv.innerHTML += `<div class="calc-ing-row">
+          <div>
+            <span class="calc-ing-name">${item.ing}</span>
+            <span class="calc-ing-ratio" style="${isModified ? 'color:var(--red)' : ''}">
+              ${item.ing === 'Souche' && soucheKgKg !== null ? soucheKgKg.toFixed(3) + ' kg/kg' : 'ratio ' + item.ratio}
+            </span>
+          </div>
+          <div class="calc-ing-qty" style="${isModified ? 'color:var(--red)' : ''}">${q.toFixed(3)} kg</div>
+        </div>`;
+      });
+    };
+
+    updateRows();
+    inpTotal.addEventListener('input', updateRows);
+    if (inpSouche) inpSouche.addEventListener('input', updateRows);
   });
 }
 
