@@ -829,8 +829,16 @@ let qtyOptions = {};
 const OPTS_KEYS = ['moule', 'tranche', 'moulTranche'];
 const OPTS_LABELS = { moule: 'Moulé seul', tranche: 'Tranché seul', moulTranche: 'Moulé + Tranché' };
 const OPTS_LABELS_RECAP = { moule: 'moulé', tranche: 'tranché', moulTranche: 'moulé + tranché' };
-// Recettes où l'option "moulé" n'a pas de sens (déjà moulée d'office)
-const RECETTES_SANS_OPTION_MOULE = ['Petit épeautre'];
+// Recettes où l'option "moulé" n'a jamais de sens (déjà moulées d'office, ou non concernées)
+const RECETTES_SANS_OPTION_MOULE = ['Petit épeautre', 'Pain de mie', 'Brioche'];
+/** Options disponibles pour une (recette, format) donnée : Moulé réservé au format "Kilo"
+ *  (insensible à la casse) des recettes qui y ont droit ; Tranché toujours disponible pour
+ *  toutes les recettes/formats (aucune recette exclue à ce jour). */
+function getOptsKeysFor(rec, fmt) {
+  const estKilo = (fmt || '').trim().toLowerCase() === 'kilo';
+  if (RECETTES_SANS_OPTION_MOULE.includes(rec) || !estKilo) return ['tranche'];
+  return OPTS_KEYS;
+}
 let fermentation = {};         // {rec: 'j1'|'direct'}
 let levainRatioOverride = {};  // {rec: {levainNom: ratio_g_per_kg}}
 
@@ -1232,7 +1240,7 @@ function buildOptsHTML(rec, fmtNom) {
   if (!qtyOptions[rec][fmtNom]) qtyOptions[rec][fmtNom] = { moule: 0, tranche: 0, moulTranche: 0 };
   clampQtyOptions(rec, fmtNom);
   const o = qtyOptions[rec][fmtNom];
-  const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+  const keys = getOptsKeysFor(rec, fmtNom);
   const sum = keys.reduce((s, k) => s + (o[k] || 0), 0);
   const canalO = getCanalOdoo();
   const total = (qty[rec] && qty[rec][fmtNom] ? qty[rec][fmtNom][canalO] || 0 : 0);
@@ -1401,7 +1409,7 @@ document.getElementById('saisie-formats').addEventListener('click', (e) => {
     if (!qtyOptions[rec][fmt]) qtyOptions[rec][fmt] = { moule: 0, tranche: 0, moulTranche: 0 };
     const canalO = getCanalOdoo();
     const total = (qty[rec] && qty[rec][fmt] ? qty[rec][fmt][canalO] || 0 : 0);
-    const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+    const keys = getOptsKeysFor(rec, fmt);
     const sumOthers = keys.filter(k => k !== key).reduce((s, k) => s + (qtyOptions[rec][fmt][k] || 0), 0);
     const cur = qtyOptions[rec][fmt][key] || 0;
     let nv = cur + parseInt(delta);
@@ -1436,7 +1444,7 @@ document.getElementById('saisie-formats').addEventListener('input', (e) => {
 /** Rafraîchit l'affichage du panneau Options (valeurs des steppers, ligne "Simple", badge du toggle) sans tout re-render. */
 function updOptsDisplay(rec, fmt) {
   const o = qtyOptions[rec] && qtyOptions[rec][fmt] ? qtyOptions[rec][fmt] : { moule: 0, tranche: 0, moulTranche: 0 };
-  const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+  const keys = getOptsKeysFor(rec, fmt);
   const sum = keys.reduce((s, k) => s + (o[k] || 0), 0);
   const canalO = getCanalOdoo();
   const total = (qty[rec] && qty[rec][fmt] ? qty[rec][fmt][canalO] || 0 : 0);
@@ -2327,26 +2335,11 @@ function exportPDF() {
 
   // Construire la liste des cuves à afficher
   const cuvesFaites = new Set();
-  function drawCuve(membres, parent, ftype) {
-    // Anti-débordement : si cette cuve ne tient pas dans l'espace restant sur la page,
-    // on passe à une nouvelle page AVANT de commencer à la dessiner (plutôt que de la couper
-    // ou de la dessiner hors-page, invisible). C'est ce qui causait les recettes manquantes.
-    const bi0 = RECETTES[parent].ingredients;
-    const partsSans0 = membres.filter(r => !(RECETTES[r].inclusions || []).length);
-    const partsAvec0 = membres.filter(r => (RECETTES[r].inclusions || []).length);
-    let estH = 6 + bi0.length * 3.8;
-    if (partsAvec0.length || partsSans0.length > 1 || (partsSans0.length && partsAvec0.length)) {
-      estH += (partsSans0.length + partsAvec0.length) * 3.5;
-    }
-    estH += 2;
-    const pageBottomL = doc.internal.pageSize.getHeight() - MT;
-    if (yL + estH > pageBottomL) {
-      doc.addPage('a4', 'landscape');
-      currentPageL = doc.internal.getNumberOfPages();
-      yL = MT;
-    }
-    doc.setPage(currentPageL);
 
+  // Dessine une cuve à une position (cx,cw,cy0) donnée et retourne le Y final après dessin.
+  // Ne gère plus la pagination elle-même — c'est placeCuve() qui en décide.
+  function drawCuveAt(cx, cw, cy0, membres, parent, ftype) {
+    let cy = cy0;
     const pt=membres.reduce((s,r)=>s+getPoidsRec(r),0);
     const mult=(()=>{for(const r of membres){const aj=cuveAjust[r];if(aj&&aj.enabled)return 1+aj.pct/100;}return 1;})();
     const ptAdj=pt*mult;
@@ -2361,36 +2354,36 @@ function exportPDF() {
 
     // Header cuve
     doc.setFillColor(isJ1?244:254,isJ1?238:245,isJ1?229:240);
-    doc.rect(ML,yL,colLW,5,'F');
-    doc.setDrawColor(...(isJ1?C.dark:C.red)); doc.line(ML,yL+5,ML+colLW,yL+5);
+    doc.rect(cx,cy,cw,5,'F');
+    doc.setDrawColor(...(isJ1?C.dark:C.red)); doc.line(cx,cy+5,cx+cw,cy+5);
     doc.setTextColor(...(isJ1?C.dark:C.red));
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
-    doc.text(`${isJ1?'(J+1)':'(Dir)'}  ${parent === membres[0] || membres.includes(parent) ? 'Cuve '+parent : parent}${suffix}${isAdj?' +'+Math.round((mult-1)*100)+'%':''}`,ML+2,yL+3.8);
+    doc.text(`${isJ1?'(J+1)':'(Dir)'}  ${parent === membres[0] || membres.includes(parent) ? 'Cuve '+parent : parent}${suffix}${isAdj?' +'+Math.round((mult-1)*100)+'%':''}`,cx+2,cy+3.8);
     doc.setFontSize(9);
-    doc.text(`${ptAdj.toFixed(3)} kg`,ML+colLW-2,yL+3.8,{align:'right'});
-    yL+=6;
+    doc.text(`${ptAdj.toFixed(3)} kg`,cx+cw-2,cy+3.8,{align:'right'});
+    cy+=6;
 
     // Ingrédients
     bi.forEach(i=>{
       let r=i.ratio;if(LEVAINS[i.ing]&&levainRatioOverride[refRec]&&levainRatioOverride[refRec][i.ing]!==undefined)r=levainRatioOverride[refRec][i.ing]/1000;
       const q=(r/dn)*ptAdj;
       doc.setTextColor(90,74,58); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-      doc.text(i.ing,ML+4,yL+3);
+      doc.text(i.ing,cx+4,cy+3);
       doc.setTextColor(...C.dark); doc.setFont('helvetica','bold');
-      doc.text(q.toFixed(3),ML+colLW-2,yL+3,{align:'right'});
-      yL+=3.8;
+      doc.text(q.toFixed(3),cx+cw-2,cy+3,{align:'right'});
+      cy+=3.8;
     });
 
     // Parts - afficher uniquement si famille multi-membres ou inclusions
     const partsSans=membres.filter(r=>!(RECETTES[r].inclusions||[]).length);
     const partsAvec=membres.filter(r=>(RECETTES[r].inclusions||[]).length);
     if(partsAvec.length||(partsSans.length>1)||(partsSans.length&&partsAvec.length)){
-      const pY=yL;
+      const pY=cy;
       partsSans.forEach(r=>{
         const pAdj=getPoidsRec(r)*mult;
         doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.dark);
-        doc.text(`> Part ${r} (${pAdj.toFixed(3)} kg) - sans inclusion`,ML+7,yL+3);
-        yL+=3.5;
+        doc.text(`> Part ${r} (${pAdj.toFixed(3)} kg) - sans inclusion`,cx+7,cy+3);
+        cy+=3.5;
       });
       partsAvec.forEach(r=>{
         const p=getPoidsRec(r),pAdj=p*mult;
@@ -2400,17 +2393,68 @@ function exportPDF() {
           txt+=` + ${inc.ing} ${q.toFixed(3)} kg`;
         });
         doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(174,125,102);
-        doc.text(txt,ML+7,yL+3);
-        yL+=3.5;
+        doc.text(txt,cx+7,cy+3);
+        cy+=3.5;
       });
       doc.setDrawColor(...C.tan); doc.setLineWidth(0.4);
-      doc.line(ML+5,pY,ML+5,yL);
+      doc.line(cx+5,pY,cx+5,cy);
     }
-    yL+=2;
+    cy+=2;
+    return cy;
+  }
+
+  // Estime la hauteur nécessaire pour une cuve, sans la dessiner.
+  function estimCuveH(membres, parent) {
+    const bi0 = RECETTES[parent].ingredients;
+    const partsSans0 = membres.filter(r => !(RECETTES[r].inclusions || []).length);
+    const partsAvec0 = membres.filter(r => (RECETTES[r].inclusions || []).length);
+    let estH = 6 + bi0.length * 3.8;
+    if (partsAvec0.length || partsSans0.length > 1 || (partsSans0.length && partsAvec0.length)) {
+      estH += (partsSans0.length + partsAvec0.length) * 3.5;
+    }
+    return estH + 2;
+  }
+
+  // Curseur de placement : tant que onPage1 est vrai, on remplit la colonne gauche étroite
+  // de la page 1 (comme avant). Dès que ça ne tient plus, on bascule en mode "débordement" :
+  // pages dédiées en pleine largeur, réparties sur 2 colonnes équilibrées (celle la moins
+  // remplie reçoit la cuve suivante) — pour ne plus jamais laisser la moitié d'une page vide.
+  let cuveCursor = { onPage1: true };
+  let ovPage = null, ovYL = MT, ovYR = MT;
+
+  function placeCuve(membres, parent, ftype) {
+    const estH = estimCuveH(membres, parent);
+    const pageBottom = doc.internal.pageSize.getHeight() - MT;
+
+    if (cuveCursor.onPage1) {
+      if (yL + estH <= pageBottom) {
+        doc.setPage(1);
+        yL = drawCuveAt(ML, colLW, yL, membres, parent, ftype);
+        return;
+      }
+      // Ne tient plus sur la page 1 : bascule en mode débordement pleine largeur.
+      doc.addPage('a4', 'landscape');
+      cuveCursor.onPage1 = false;
+      ovPage = doc.internal.getNumberOfPages();
+      ovYL = MT; ovYR = MT;
+    }
+
+    doc.setPage(ovPage);
+    let col = ovYL <= ovYR ? 'L' : 'R';
+    let cx = col === 'L' ? ML : colRX, cw = col === 'L' ? colLW : colRW;
+    let cy0 = col === 'L' ? ovYL : ovYR;
+    if (cy0 + estH > pageBottom) {
+      // Les deux colonnes sont pleines : nouvelle page de débordement.
+      doc.addPage('a4', 'landscape');
+      ovPage = doc.internal.getNumberOfPages();
+      ovYL = MT; ovYR = MT;
+      col = 'L'; cx = ML; cw = colLW; cy0 = MT;
+    }
+    const newY = drawCuveAt(cx, cw, cy0, membres, parent, ftype);
+    if (col === 'L') ovYL = newY; else ovYR = newY;
   }
 
   // Itérer les cuves (avec gestion fermentation mixte)
-  let currentPageL = 1;
   getParentesAvecDecli().forEach(parent=>{
     const tousM=getFamille(parent).filter(x=>selectedRecettes.has(x));
     if(!tousM.length)return;
@@ -2418,12 +2462,12 @@ function exportPDF() {
     tousM.forEach(r=>{const f=fermentation[r]||'j1';if(!groupes[f])groupes[f]=[];groupes[f].push(r);});
     Object.entries(groupes).forEach(([ft,mbrs])=>{
       cuvesFaites.add(parent);
-      drawCuve(mbrs,parent,ft);
+      placeCuve(mbrs,parent,ft);
     });
   });
   // Recettes indépendantes
   orderedRecettes.filter(r=>!cuvesFaites.has(getParent(r))&&!cuvesFaites.has(r)&&getPoidsRec(r)>0).forEach(rec=>{
-    drawCuve([rec],rec,fermentation[rec]||'j1');
+    placeCuve([rec],rec,fermentation[rec]||'j1');
   });
 
   // ── COL DROITE : Levains ──
@@ -2516,7 +2560,7 @@ function exportPDF() {
       const total = (qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][canalOExport] || 0 : 0);
       if (!total) return;
       const o = (qtyOptions[rec] && qtyOptions[rec][fmt.nom]) ? qtyOptions[rec][fmt.nom] : { moule: 0, tranche: 0, moulTranche: 0 };
-      const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+      const keys = getOptsKeysFor(rec, fmt.nom);
       const sumOpts = keys.reduce((s, k) => s + (o[k] || 0), 0);
       const simple = Math.max(0, total - sumOpts);
       const detailParts = [];
@@ -2527,8 +2571,21 @@ function exportPDF() {
   });
 
   if (commandesRows.length > 0) {
-    doc.addPage('a4', 'landscape');
-    let cy = MT;
+    // Tente d'accoler le tableau à la suite de la dernière page utilisée pour les cuves
+    // (plutôt que de systématiquement partir sur une page neuve à moitié vide) : pleine
+    // largeur de page, en dessous du contenu déjà en place sur cette page-là.
+    const pageBottomCheck = doc.internal.pageSize.getHeight() - MT;
+    const estBandeauH = 17; // hauteur du bandeau titre + marge avant le tableau
+    let cmdPage = cuveCursor.onPage1 ? 1 : ovPage;
+    let cy = cuveCursor.onPage1 ? Math.max(yL, yR) + 4 : Math.max(ovYL, ovYR) + 4;
+
+    if (cy + estBandeauH > pageBottomCheck) {
+      doc.addPage('a4', 'landscape');
+      cmdPage = doc.internal.getNumberOfPages();
+      cy = MT;
+    }
+    doc.setPage(cmdPage);
+
     doc.setFillColor(...C.bacs); doc.rect(ML, cy, PW, 7, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
     doc.text('Commandes à préparer', ML + 3, cy + 5);
@@ -4130,7 +4187,7 @@ function printFicheJournee() {
       if (!total) return;
       hasCommandes = true;
       const o = (qtyOptions[rec] && qtyOptions[rec][fmt.nom]) ? qtyOptions[rec][fmt.nom] : { moule: 0, tranche: 0, moulTranche: 0 };
-      const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+      const keys = getOptsKeysFor(rec, fmt.nom);
       const sumOpts = keys.reduce((s, k) => s + (o[k] || 0), 0);
       const simple = Math.max(0, total - sumOpts);
       h += `<div class="bac"><div class="bac-title">${rec} — ${fmt.nom} : ${total}</div>`;
