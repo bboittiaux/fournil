@@ -2282,8 +2282,12 @@ function exportPDF() {
   const date = new Date().toLocaleDateString('fr-FR');
   const recsJ1 = orderedRecettes.filter(r=>(fermentation[r]||'j1')==='j1');
   const recsDirect = orderedRecettes.filter(r=>fermentation[r]==='direct');
-  let totalPainsN=0, totalKgN=0, totalBacsN=0;
-  orderedRecettes.forEach(r=>{ totalPainsN+=getTotalPains(r); totalKgN+=getPoidsRecTotal(r); totalBacsN+=(bacs[r]||[]).length; });
+  let totalPainsN=0, totalKgN=0, totalCommandesN=0;
+  const canalOStats = getCanalOdoo();
+  orderedRecettes.forEach(r=>{
+    totalPainsN+=getTotalPains(r); totalKgN+=getPoidsRecTotal(r);
+    (FORMATS[r]||[]).forEach(f=>{ totalCommandesN += (qty[r] && qty[r][f.nom] ? qty[r][f.nom][canalOStats]||0 : 0); });
+  });
 
   const C = { dark:[54,40,26], tan:[209,183,167], paper:[239,237,216], red:[199,54,0], green:[45,106,71], bacs:[139,111,71], grey:[120,120,120] };
   const W=297, ML=9, MR=9, MT=7;
@@ -2296,12 +2300,12 @@ function exportPDF() {
   doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255,255,255);
   doc.text('Le Fournil des Enfariné.e.s', ML+3, y+5);
   doc.setFont('helvetica','normal'); doc.setFontSize(8);
-  doc.text(`Fournée du ${date} · ${orderedRecettes.length} recettes · ${totalBacsN} bacs`, PW+ML-3, y+5, {align:'right'});
+  doc.text(`Fournée du ${date} · ${orderedRecettes.length} recettes · ${totalCommandesN} en commande`, PW+ML-3, y+5, {align:'right'});
   y+=9;
 
   // ── Stats ──
   const statW=PW/4-1;
-  [[totalPainsN,'pains'],[totalKgN.toFixed(1),'kg pâte crue'],[orderedRecettes.length,'recettes'],[totalBacsN,'bacs (p.2)']].forEach((s,i)=>{
+  [[totalPainsN,'pains'],[totalKgN.toFixed(1),'kg pâte crue'],[orderedRecettes.length,'recettes'],[totalCommandesN,'commandes (p.2)']].forEach((s,i)=>{
     const sx=ML+i*(statW+1.3);
     doc.setFillColor(...C.dark); doc.roundedRect(sx,y,statW,8,1,1,'F');
     doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
@@ -2503,67 +2507,44 @@ function exportPDF() {
   doc.text('T° labo : _______ °C       T° pâte : _______ °C       Cuit à : _______ °C',colRX+2,yR+7);
 
   // ══════════════════════════════════════════════
-  // PAGE 2 - Bacs
+  // PAGE 2 - Commandes à préparer
   // ══════════════════════════════════════════════
-  const bacsFlat=[];
-  orderedRecettes.forEach(rec=>{(bacs[rec]||[]).forEach(bac=>bacsFlat.push({rec,bac}));});
-  bacsFlat.sort((a,b)=>(b.bac.prio?1:0)-(a.bac.prio?1:0));
+  const canalOExport = getCanalOdoo();
+  const commandesRows = [];
+  orderedRecettes.forEach(rec => {
+    (FORMATS[rec] || []).forEach(fmt => {
+      const total = (qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][canalOExport] || 0 : 0);
+      if (!total) return;
+      const o = (qtyOptions[rec] && qtyOptions[rec][fmt.nom]) ? qtyOptions[rec][fmt.nom] : { moule: 0, tranche: 0, moulTranche: 0 };
+      const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+      const sumOpts = keys.reduce((s, k) => s + (o[k] || 0), 0);
+      const simple = Math.max(0, total - sumOpts);
+      const detailParts = [];
+      if (simple > 0) detailParts.push(`${simple} simple`);
+      keys.forEach(k => { if (o[k] > 0) detailParts.push(`${o[k]} ${OPTS_LABELS_RECAP[k]}`); });
+      commandesRows.push([rec, fmt.nom, String(total), detailParts.join(' · ') || '—']);
+    });
+  });
 
-  if(bacsFlat.length>0){
-    doc.addPage('a4','landscape');
-    let by=MT;
-    doc.setFillColor(...C.bacs); doc.rect(ML,by,PW,7,'F');
-    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(10);
-    doc.text(`Bacs de pointage - ${totalBacsN} bacs dans l'ordre de sortie`,ML+3,by+5);
-    doc.setFont('helvetica','normal'); doc.setFontSize(8);
-    doc.text(`Fournée du ${date}`,PW+ML-3,by+5,{align:'right'});
-    by+=10;
+  if (commandesRows.length > 0) {
+    doc.addPage('a4', 'landscape');
+    let cy = MT;
+    doc.setFillColor(...C.bacs); doc.rect(ML, cy, PW, 7, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text('Commandes à préparer', ML + 3, cy + 5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    doc.text(`Fournée du ${date}`, PW + ML - 3, cy + 5, { align: 'right' });
+    cy += 10;
 
-    const bacW=(PW-4)/2, bacH=12;
-    let col=0, bacY=by;
-
-    bacsFlat.forEach((entry,i)=>{
-      const {rec,bac}=entry;
-      const bx=ML+col*(bacW+4);
-
-      // Nouvelle page si débordement
-      if(bacY+bacH>210-7){
-        doc.addPage('a4','landscape');
-        bacY=MT; col=0;
-      }
-
-      const poids=getBacPoids(bac,rec);
-      if(bac.prio){
-        doc.setFillColor(254,245,240); doc.setDrawColor(...C.red); doc.setLineWidth(0.5);
-      } else {
-        doc.setFillColor(255,255,255); doc.setDrawColor(...C.tan); doc.setLineWidth(0.2);
-      }
-      doc.roundedRect(bx,bacY,bacW,bacH,1,1,'FD');
-
-      doc.setTextColor(...(bac.prio?C.red:C.dark));
-      doc.setFont('helvetica','bold'); doc.setFontSize(12);
-      doc.text((bac.prio?'* ':'')+(i+1).toString(),bx+2,bacY+5);
-
-      const tagX=bx+(bac.prio?14:10);
-      doc.setFillColor(...C.dark);
-      const tag=rec.substring(0,5).toUpperCase();
-      const tagW=doc.getStringUnitWidth(tag)*5.5/doc.internal.scaleFactor+3;
-      doc.roundedRect(tagX,bacY+1.5,tagW,3.5,0.5,0.5,'F');
-      doc.setTextColor(255,255,255); doc.setFontSize(5.5);
-      doc.text(tag,tagX+1.5,bacY+3.8);
-
-      doc.setTextColor(...C.dark); doc.setFont('helvetica','bold'); doc.setFontSize(8);
-      doc.text(bac.label,tagX+tagW+2,bacY+4.2);
-
-      doc.setFontSize(9);
-      doc.text(`${poids.toFixed(1)} kg`,bx+bacW-2,bacY+4.5,{align:'right'});
-
-      const fmtsStr=Object.entries(bac.formats||{}).filter(([_,q])=>q>0).map(([f,q])=>`${q}× ${f}`).join(' · ')||'-';
-      doc.setTextColor(...C.grey); doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
-      doc.text(fmtsStr,bx+4,bacY+9);
-
-      col++;
-      if(col>=2){ col=0; bacY+=bacH+3; }
+    // autoTable gère seule la pagination si la liste est longue — pas de risque de débordement silencieux.
+    doc.autoTable({
+      startY: cy, margin: { left: ML, right: MR },
+      head: [['Recette', 'Format', 'Qté', 'Détail (options)']],
+      body: commandesRows,
+      styles: { fontSize: 9, cellPadding: 2.2, textColor: C.dark, lineWidth: 0.1, lineColor: [220, 216, 200] },
+      headStyles: { fillColor: C.paper, textColor: C.bacs, fontSize: 8, fontStyle: 'bold' },
+      columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 45 }, 2: { cellWidth: 22, halign: 'right', fontStyle: 'bold' }, 3: { cellWidth: 'auto' } },
+      alternateRowStyles: { fillColor: [250, 248, 240] },
     });
   }
 
