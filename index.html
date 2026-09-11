@@ -124,6 +124,23 @@ html, body {
 .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .canal-subtotal { width: 52px; text-align: right; font-size: 11px; color: var(--tan-dark); flex-shrink: 0; font-weight: 500; }
 
+/* ── OPTIONS COMMANDES (moulé / tranché) ── */
+.opts-toggle { display: flex; align-items: center; justify-content: space-between; padding: 6px 15px 6px 30px; border-top: 1px dashed var(--paper2); cursor: pointer; user-select: none; }
+.opts-toggle-label { font-size: 11px; color: var(--tan-dark); font-weight: 600; }
+.opts-toggle-label.has-opts { color: var(--red); }
+.opts-toggle-arrow { font-size: 10px; color: var(--tan-dark); transition: transform 0.15s; }
+.opts-toggle.open .opts-toggle-arrow { transform: rotate(90deg); }
+.opts-panel { background: var(--paper); padding: 4px 15px 8px 30px; border-top: 1px solid var(--paper2); }
+.opt-row { display: flex; align-items: center; padding: 5px 0; }
+.opt-label { font-size: 11px; color: var(--dark); width: 110px; flex-shrink: 0; }
+.opt-input-wrap { flex: 1; display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.opt-btn { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--paper2); background: var(--white); font-size: 15px; color: var(--red); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; user-select: none; font-weight: 700; }
+.opt-btn:active { background: var(--tan); border-color: var(--tan-dark); }
+.opt-val { width: 28px; text-align: center; font-size: 15px; font-weight: 700; color: var(--dark); }
+.opt-row.opt-simple { border-top: 1px solid var(--paper2); margin-top: 3px; padding-top: 7px; }
+.opt-row.opt-simple .opt-label { color: var(--tan-dark); font-style: italic; }
+.opt-row.opt-simple .opt-val { color: var(--tan-dark); width: auto; }
+
 .famille-note { background: #FAF3EC; border: 1px solid var(--tan); border-radius: 8px; padding: 12px; font-size: 11px; color: var(--dark); line-height: 1.6; margin: 0 10px 16px; }
 
 /* ── ÉCRAN 3 : RÉSUMÉ ET PESÉES ── */
@@ -805,6 +822,15 @@ let selectedRecettes = new Set();
 let orderedRecettes = [];
 let currentStep = 0;
 let qty = {};
+// Options moulé/tranché — uniquement pertinentes pour le canal Commandes (celui flaggé odoo:true).
+// qtyOptions[rec][fmtNom] = {moule, tranche, moulTranche} — pains AVEC au moins une option.
+// Le nombre de pains "simple" se déduit : qty[rec][fmt][canalOdoo] - (moule+tranche+moulTranche).
+let qtyOptions = {};
+const OPTS_KEYS = ['moule', 'tranche', 'moulTranche'];
+const OPTS_LABELS = { moule: 'Moulé seul', tranche: 'Tranché seul', moulTranche: 'Moulé + Tranché' };
+const OPTS_LABELS_RECAP = { moule: 'moulé', tranche: 'tranché', moulTranche: 'moulé + tranché' };
+// Recettes où l'option "moulé" n'a pas de sens (déjà moulée d'office)
+const RECETTES_SANS_OPTION_MOULE = ['Petit épeautre'];
 let fermentation = {};         // {rec: 'j1'|'direct'}
 let levainRatioOverride = {};  // {rec: {levainNom: ratio_g_per_kg}}
 
@@ -855,6 +881,34 @@ function initQty() {
   });
 }
 
+function initQtyOptions() {
+  qtyOptions = {};
+  Object.keys(FORMATS).forEach(rec => {
+    qtyOptions[rec] = {};
+    (FORMATS[rec] || []).forEach(fmt => {
+      qtyOptions[rec][fmt.nom] = { moule: 0, tranche: 0, moulTranche: 0 };
+    });
+  });
+}
+
+/** Empêche la somme des options de dépasser le total Commandes du format (recale si besoin). */
+function clampQtyOptions(rec, fmt) {
+  if (!qtyOptions[rec] || !qtyOptions[rec][fmt]) return;
+  const canalO = getCanalOdoo();
+  const total = (qty[rec] && qty[rec][fmt] ? qty[rec][fmt][canalO] || 0 : 0);
+  const o = qtyOptions[rec][fmt];
+  let sum = (o.moule || 0) + (o.tranche || 0) + (o.moulTranche || 0);
+  if (sum > total) {
+    let excess = sum - total;
+    ['moulTranche', 'tranche', 'moule'].forEach(k => {
+      if (excess <= 0) return;
+      const take = Math.min(o[k] || 0, excess);
+      o[k] = (o[k] || 0) - take;
+      excess -= take;
+    });
+  }
+}
+
 // ── Helpers migration qty lors des changements de canaux ──
 function addCanalToQty(nom) {
   Object.keys(qty).forEach(rec =>
@@ -889,6 +943,22 @@ function mergeQty(data) {
   });
 }
 
+function mergeQtyOptions(data) {
+  Object.keys(data || {}).forEach(rec => {
+    if (!qtyOptions[rec]) return;
+    Object.keys(data[rec] || {}).forEach(fmt => {
+      let targetFmt = fmt;
+      if (!qtyOptions[rec][fmt] && fmt.includes('-') && qtyOptions[rec][fmt.replace(/-/g, '.')]) {
+        targetFmt = fmt.replace(/-/g, '.');
+      }
+      if (!qtyOptions[rec][targetFmt]) return;
+      const d = data[rec][fmt] || {};
+      qtyOptions[rec][targetFmt] = { moule: d.moule || 0, tranche: d.tranche || 0, moulTranche: d.moulTranche || 0 };
+      clampQtyOptions(rec, targetFmt);
+    });
+  });
+}
+
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -908,7 +978,19 @@ function saveSessionQty() {
       safeQty[safeRec][safeFmt] = qty[rec][fmt];
     });
   });
+  const safeQtyOptions = {};
+  Object.keys(qtyOptions).forEach(rec => {
+    let safeRec = rec.replace(/[.#$\[\]/]/g, '-').trim();
+    if (!safeRec) safeRec = "Recette_Inconnue";
+    safeQtyOptions[safeRec] = {};
+    Object.keys(qtyOptions[rec]).forEach(fmt => {
+      let safeFmt = fmt.replace(/[.#$\[\]/]/g, '-').trim();
+      if (!safeFmt) safeFmt = "Standard";
+      safeQtyOptions[safeRec][safeFmt] = qtyOptions[rec][fmt];
+    });
+  });
   fbSet('session/qty', safeQty).catch(() => {});
+  fbSet('session/qtyOptions', safeQtyOptions).catch(() => {});
   fbSet('session/canaux', CANAUX_CONFIG).catch(() => {});
   fbSet('session/fermentation', fermentation).catch(() => {});
   fbSet('session/levainOverride', levainRatioOverride).catch(() => {});
@@ -943,14 +1025,18 @@ async function init() {
       applyCanaux(lastCanaux);
     }
     initQty();
+    initQtyOptions();
     const lastQty = await fbGet('session/qty');
     if (lastQty) mergeQty(lastQty);
+    const lastQtyOptions = await fbGet('session/qtyOptions');
+    if (lastQtyOptions) mergeQtyOptions(lastQtyOptions);
     const lastFerm = await fbGet('session/fermentation');
     if (lastFerm) fermentation = lastFerm;
     const lastLev = await fbGet('session/levainOverride');
     if (lastLev) levainRatioOverride = lastLev;
   } catch(e) {
     initQty();
+    initQtyOptions();
   }
   renderSelection();
   updateProgress();
@@ -1140,6 +1226,42 @@ function renderStep() {
 
 }
 
+/** Construit le sous-panneau "Options" (moulé/tranché) sous la ligne du canal Commandes d'un format. */
+function buildOptsHTML(rec, fmtNom) {
+  if (!qtyOptions[rec]) qtyOptions[rec] = {};
+  if (!qtyOptions[rec][fmtNom]) qtyOptions[rec][fmtNom] = { moule: 0, tranche: 0, moulTranche: 0 };
+  clampQtyOptions(rec, fmtNom);
+  const o = qtyOptions[rec][fmtNom];
+  const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+  const sum = keys.reduce((s, k) => s + (o[k] || 0), 0);
+  const canalO = getCanalOdoo();
+  const total = (qty[rec] && qty[rec][fmtNom] ? qty[rec][fmtNom][canalO] || 0 : 0);
+  const simple = Math.max(0, total - sum);
+  const idBase = `${rec}-${fmtNom}`;
+
+  let rows = keys.map(k => `
+    <div class="opt-row">
+      <div class="opt-label">${OPTS_LABELS[k]}</div>
+      <div class="opt-input-wrap">
+        <button class="opt-btn" data-opt-rec="${rec}" data-opt-fmt="${fmtNom}" data-opt-key="${k}" data-opt-delta="-1">−</button>
+        <div class="opt-val" id="opt-val-${idBase}-${k}">${o[k] || 0}</div>
+        <button class="opt-btn" data-opt-rec="${rec}" data-opt-fmt="${fmtNom}" data-opt-key="${k}" data-opt-delta="1">+</button>
+      </div>
+    </div>`).join('');
+  rows += `
+    <div class="opt-row opt-simple">
+      <div class="opt-label">Simple (sans option)</div>
+      <div class="opt-val" id="opt-simple-${idBase}">${simple}</div>
+    </div>`;
+
+  return `
+    <div class="opts-toggle ${sum > 0 ? 'open' : ''}" data-opts-toggle-rec="${rec}" data-opts-toggle-fmt="${fmtNom}">
+      <div class="opts-toggle-label ${sum > 0 ? 'has-opts' : ''}" id="opts-toggle-lbl-${idBase}">${sum > 0 ? 'Options · ' + sum : 'Options'}</div>
+      <div class="opts-toggle-arrow">▸</div>
+    </div>
+    <div class="opts-panel" id="opts-panel-${idBase}" style="display:${sum > 0 ? 'block' : 'none'}">${rows}</div>`;
+}
+
 function renderFormats(rec) {
   const ct = document.getElementById('saisie-formats');
   ct.innerHTML = '';
@@ -1232,9 +1354,13 @@ function renderFormats(rec) {
     if (!qty[rec]) qty[rec] = {};
     if (!qty[rec][fmt.nom]) { qty[rec][fmt.nom] = {}; CANAUX.forEach(c => qty[rec][fmt.nom][c] = 0); }
     let blockHTML = `<div class="format-block"><div class="format-block-title"><span>${fmt.nom}</span><span class="format-poids">${(pc * 1000).toFixed(0)}g cru → ${(fmt.poidsCuit * 1000).toFixed(0)}g cuit</span></div>`;
+    const canalO = getCanalOdoo();
     CANAUX.forEach(canal => {
       const val = qty[rec][fmt.nom][canal] || 0;
       blockHTML += `<div class="canal-row"><div class="canal-label">${canal}</div><div class="canal-input-wrap"><button class="qty-btn" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}" data-delta="-1">−</button><input class="qty-input" type="number" inputmode="numeric" enterkeyhint="next" min="0" value="${val || ''}" placeholder="0" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}"><button class="qty-btn" data-rec="${rec}" data-fmt="${fmt.nom}" data-canal="${canal}" data-delta="1">+</button><div class="canal-subtotal" id="sub-${rec}-${fmt.nom}-${canal}">${val ? (val * pc).toFixed(2) + ' kg' : ''}</div></div></div>`;
+      if (canal === canalO) {
+        blockHTML += buildOptsHTML(rec, fmt.nom);
+      }
     });
     blockHTML += '</div>';
     
@@ -1265,7 +1391,34 @@ document.getElementById('saisie-formats').addEventListener('click', (e) => {
     qty[rec][fmt][canal] = nv;
     updSub(rec, fmt, canal);
     updateLiveTotals(rec);
+    if (canal === getCanalOdoo()) { clampQtyOptions(rec, fmt); updOptsDisplay(rec, fmt); }
     saveSessionQty();
+    return;
+  }
+  if (e.target.classList.contains('opt-btn')) {
+    const { optRec: rec, optFmt: fmt, optKey: key, optDelta: delta } = e.target.dataset;
+    if (!qtyOptions[rec]) qtyOptions[rec] = {};
+    if (!qtyOptions[rec][fmt]) qtyOptions[rec][fmt] = { moule: 0, tranche: 0, moulTranche: 0 };
+    const canalO = getCanalOdoo();
+    const total = (qty[rec] && qty[rec][fmt] ? qty[rec][fmt][canalO] || 0 : 0);
+    const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+    const sumOthers = keys.filter(k => k !== key).reduce((s, k) => s + (qtyOptions[rec][fmt][k] || 0), 0);
+    const cur = qtyOptions[rec][fmt][key] || 0;
+    let nv = cur + parseInt(delta);
+    nv = Math.max(0, Math.min(nv, total - sumOthers));
+    if (nv === cur && parseInt(delta) > 0) { showToast(`Ne peut pas dépasser les ${total} commandé(s)`); }
+    qtyOptions[rec][fmt][key] = nv;
+    updOptsDisplay(rec, fmt);
+    saveSessionQty();
+    return;
+  }
+  const toggleEl = e.target.closest('.opts-toggle');
+  if (toggleEl) {
+    const { optsToggleRec: rec, optsToggleFmt: fmt } = toggleEl.dataset;
+    const panel = document.getElementById(`opts-panel-${rec}-${fmt}`);
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    toggleEl.classList.toggle('open', !isOpen);
   }
 });
 
@@ -1275,9 +1428,29 @@ document.getElementById('saisie-formats').addEventListener('input', (e) => {
     qty[rec][fmt][canal] = parseInt(e.target.value) || 0;
     updSub(rec, fmt, canal);
     updateLiveTotals(rec);
+    if (canal === getCanalOdoo()) { clampQtyOptions(rec, fmt); updOptsDisplay(rec, fmt); }
     saveSessionQty();
   }
 });
+
+/** Rafraîchit l'affichage du panneau Options (valeurs des steppers, ligne "Simple", badge du toggle) sans tout re-render. */
+function updOptsDisplay(rec, fmt) {
+  const o = qtyOptions[rec] && qtyOptions[rec][fmt] ? qtyOptions[rec][fmt] : { moule: 0, tranche: 0, moulTranche: 0 };
+  const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+  const sum = keys.reduce((s, k) => s + (o[k] || 0), 0);
+  const canalO = getCanalOdoo();
+  const total = (qty[rec] && qty[rec][fmt] ? qty[rec][fmt][canalO] || 0 : 0);
+  const simple = Math.max(0, total - sum);
+  const idBase = `${rec}-${fmt}`;
+  keys.forEach(k => {
+    const el = document.getElementById(`opt-val-${idBase}-${k}`);
+    if (el) el.textContent = o[k] || 0;
+  });
+  const simpleEl = document.getElementById(`opt-simple-${idBase}`);
+  if (simpleEl) simpleEl.textContent = simple;
+  const lbl = document.getElementById(`opts-toggle-lbl-${idBase}`);
+  if (lbl) { lbl.textContent = sum > 0 ? 'Options · ' + sum : 'Options'; lbl.classList.toggle('has-opts', sum > 0); }
+}
 
 function updSub(rec, fmt, canal) {
   const val = qty[rec] && qty[rec][fmt] ? qty[rec][fmt][canal] || 0 : 0;
@@ -2151,6 +2324,25 @@ function exportPDF() {
   // Construire la liste des cuves à afficher
   const cuvesFaites = new Set();
   function drawCuve(membres, parent, ftype) {
+    // Anti-débordement : si cette cuve ne tient pas dans l'espace restant sur la page,
+    // on passe à une nouvelle page AVANT de commencer à la dessiner (plutôt que de la couper
+    // ou de la dessiner hors-page, invisible). C'est ce qui causait les recettes manquantes.
+    const bi0 = RECETTES[parent].ingredients;
+    const partsSans0 = membres.filter(r => !(RECETTES[r].inclusions || []).length);
+    const partsAvec0 = membres.filter(r => (RECETTES[r].inclusions || []).length);
+    let estH = 6 + bi0.length * 3.8;
+    if (partsAvec0.length || partsSans0.length > 1 || (partsSans0.length && partsAvec0.length)) {
+      estH += (partsSans0.length + partsAvec0.length) * 3.5;
+    }
+    estH += 2;
+    const pageBottomL = doc.internal.pageSize.getHeight() - MT;
+    if (yL + estH > pageBottomL) {
+      doc.addPage('a4', 'landscape');
+      currentPageL = doc.internal.getNumberOfPages();
+      yL = MT;
+    }
+    doc.setPage(currentPageL);
+
     const pt=membres.reduce((s,r)=>s+getPoidsRec(r),0);
     const mult=(()=>{for(const r of membres){const aj=cuveAjust[r];if(aj&&aj.enabled)return 1+aj.pct/100;}return 1;})();
     const ptAdj=pt*mult;
@@ -2214,6 +2406,7 @@ function exportPDF() {
   }
 
   // Itérer les cuves (avec gestion fermentation mixte)
+  let currentPageL = 1;
   getParentesAvecDecli().forEach(parent=>{
     const tousM=getFamille(parent).filter(x=>selectedRecettes.has(x));
     if(!tousM.length)return;
@@ -2230,6 +2423,9 @@ function exportPDF() {
   });
 
   // ── COL DROITE : Levains ──
+  // Revenir explicitement page 1 : la colonne gauche peut avoir débordé sur d'autres pages,
+  // mais la colonne droite (Levains + Pains) doit toujours rester sur la page 1.
+  doc.setPage(1);
   doc.setFillColor(...C.green); doc.rect(colRX,yR,colRW,5,'F');
   doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(7);
   doc.text('LEVAINS À PRÉPARER',colRX+2,yR+3.5);
@@ -2758,7 +2954,9 @@ function renderSavedList(data) {
       const d = data[name]; 
       selectedRecettes = new Set(d.selected || []); 
       initQty(); 
+      initQtyOptions();
       if (d.qty) mergeQty(d.qty); 
+      if (d.qtyOptions) mergeQtyOptions(d.qtyOptions);
       
       fermentation = d.fermentation || {};
       levainRatioOverride = d.levainOverride || {};
@@ -2978,7 +3176,7 @@ document.getElementById('btn-prev').addEventListener('click', () => { if (curren
 document.getElementById('btn-go-sel').addEventListener('click', () => goTo('screen-selection'));
 document.getElementById('btn-next').addEventListener('click', () => { if (currentStep < orderedRecettes.length - 1) { currentStep++; renderStep(); } else { renderResume(); goTo('screen-resume'); } });
 
-document.getElementById('btn-raz').addEventListener('click', () => { const rec = orderedRecettes[currentStep]; if (!confirm(`Remettre à 0 les quantités pour ${rec} ?`)) return; if (qty[rec]) Object.keys(qty[rec]).forEach(fmt => { CANAUX.forEach(c => { qty[rec][fmt][c] = 0; }); }); saveSessionQty(); renderFormats(rec); updateLiveTotals(rec); });
+document.getElementById('btn-raz').addEventListener('click', () => { const rec = orderedRecettes[currentStep]; if (!confirm(`Remettre à 0 les quantités pour ${rec} ?`)) return; if (qty[rec]) Object.keys(qty[rec]).forEach(fmt => { CANAUX.forEach(c => { qty[rec][fmt][c] = 0; }); }); if (qtyOptions[rec]) Object.keys(qtyOptions[rec]).forEach(fmt => { qtyOptions[rec][fmt] = { moule: 0, tranche: 0, moulTranche: 0 }; }); saveSessionQty(); renderFormats(rec); updateLiveTotals(rec); });
 document.getElementById('btn-resume-sel').addEventListener('click', () => goTo('screen-selection'));
 document.getElementById('btn-resume-saisie').addEventListener('click', () => { goTo('screen-saisie'); renderStep(); });
 
@@ -3015,6 +3213,18 @@ document.getElementById('btn-save-fournee').addEventListener('click', async () =
     });
   });
 
+  const safeQtyOptions = {};
+  Object.keys(qtyOptions).forEach(rec => {
+    let safeRec = rec.replace(/[.#$\[\]/]/g, '-').trim();
+    if (!safeRec) safeRec = "Recette_Inconnue";
+    safeQtyOptions[safeRec] = {};
+    Object.keys(qtyOptions[rec]).forEach(fmt => {
+      let safeFmt = fmt.replace(/[.#$\[\]/]/g, '-').trim();
+      if (!safeFmt) safeFmt = "Standard";
+      safeQtyOptions[safeRec][safeFmt] = qtyOptions[rec][fmt];
+    });
+  });
+
   const safeSelected = [...selectedRecettes].map(r => {
     let sr = r.replace(/[.#$\[\]/]/g, '-').trim();
     return sr ? sr : "Recette_Inconnue";
@@ -3023,6 +3233,7 @@ document.getElementById('btn-save-fournee').addEventListener('click', async () =
   const ok = await fbSet('fournees/' + name, { 
     selected: safeSelected, 
     qty: safeQty,
+    qtyOptions: safeQtyOptions,
     fermentation: fermentation,
     levainOverride: levainRatioOverride,
     bacs: bacs,
@@ -3928,39 +4139,30 @@ function printFicheJournee() {
     }
   }
 
-  // Bacs — prioritaires d'abord par recette
-  h += `<h2>Bacs de pointage</h2>`;
-  let hasBacs = false;
+  // Commandes à préparer — détail par référence, avec options moulé/tranché, sans nom de client
+  h += `<h2>Commandes à préparer</h2>`;
+  let hasCommandes = false;
+  const canalOExport = getCanalOdoo();
   orderedRecettes.forEach(rec => {
-    const bacList = (bacs[rec] || []);
-    if (!bacList.length) return;
-    const sorted = [...bacList].sort((a, b) => (b.prio ? 1 : 0) - (a.prio ? 1 : 0));
-    sorted.forEach((bac) => {
-      hasBacs = true;
-      const poids = getBacPoids(bac, rec);
-      const fv = (fermentation[rec] || 'j1') === 'j1' ? '🌙 J+1' : '☀️ Direct';
-      h += `<div class="bac ${bac.prio ? 'prio' : ''}">
-        <div class="bac-title ${bac.prio ? 'prio' : ''}">${bac.prio ? '★ ' : ''}${bac.label}</div>
-        <div class="bac-sub">${rec} · ${fv} · ${poids.toFixed(3)} kg pâte crue</div>
-        <table><tr><th>Format</th><th style="text-align:center">Nb</th><th style="text-align:right">Poids cru</th></tr>`;
-      Object.entries(bac.formats || {}).forEach(([fmtNom, qte]) => {
-        if (!qte) return;
-        const fmt = (FORMATS[rec] || []).find(f => f.nom === fmtNom);
-        if (!fmt) return;
-        const pPateU = fmt.poidsCuit / (1 - ((RECETTES[rec] || {}).perte || 0.12));
-        const inclRJ = ((RECETTES[rec] || {}).inclusions || []).reduce((s, inc) => s + inc.ratio, 0);
-        const pu = pPateU * (1 + inclRJ);
-        h += `<tr><td>${fmtNom}</td><td style="text-align:center">${qte}</td><td class="r">${(qte*pu).toFixed(3)} kg</td></tr>`;
-      });
-      h += `<tr style="background:#EFEDD8;font-weight:700"><td>Total</td><td style="text-align:center">${Object.values(bac.formats||{}).reduce((a,b)=>a+b,0)}</td><td class="r">${poids.toFixed(3)} kg</td></tr></table>`;
-      const notes_bac = (RECETTES[rec] || {}).notes || '';
-      if (notes_bac) {
-        h += `<div style="border-top:1px solid #E0D8C0;padding-top:6px;margin-top:4px;font-size:11px;white-space:pre-wrap">${notes_bac}</div>`;
+    (FORMATS[rec] || []).forEach(fmt => {
+      const total = (qty[rec] && qty[rec][fmt.nom] ? qty[rec][fmt.nom][canalOExport] || 0 : 0);
+      if (!total) return;
+      hasCommandes = true;
+      const o = (qtyOptions[rec] && qtyOptions[rec][fmt.nom]) ? qtyOptions[rec][fmt.nom] : { moule: 0, tranche: 0, moulTranche: 0 };
+      const keys = RECETTES_SANS_OPTION_MOULE.includes(rec) ? ['tranche'] : OPTS_KEYS;
+      const sumOpts = keys.reduce((s, k) => s + (o[k] || 0), 0);
+      const simple = Math.max(0, total - sumOpts);
+      h += `<div class="bac"><div class="bac-title">${rec} — ${fmt.nom} : ${total}</div>`;
+      if (sumOpts > 0) {
+        h += '<ul style="margin:4px 0 0;padding-left:18px;font-size:12px;line-height:1.7">';
+        if (simple > 0) h += `<li>${simple} simple</li>`;
+        keys.forEach(k => { if (o[k] > 0) h += `<li>${o[k]} ${OPTS_LABELS_RECAP[k]}</li>`; });
+        h += '</ul>';
       }
       h += '</div>';
     });
   });
-  if (!hasBacs) h += `<p style="color:#AE7D66;font-style:italic">Aucun bac défini.</p>`;
+  if (!hasCommandes) h += `<p style="color:#AE7D66;font-style:italic">Aucune commande.</p>`;
 
   h += `
   <!-- ═══════════════════════════════════════════════════════
